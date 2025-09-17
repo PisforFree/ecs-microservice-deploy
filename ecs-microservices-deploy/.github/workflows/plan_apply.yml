@@ -12,7 +12,6 @@ on:
   push:
     branches: [ "main" ]
 
-
 permissions:
   contents: read
   pull-requests: write
@@ -31,7 +30,24 @@ jobs:
       run:
         working-directory: infra/terraform
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Debug + guard: confirm the path exists in THIS PR branch
+      - name: Show repo layout & verify terraform path
+        working-directory: .
+        run: |
+          echo "PWD (repo root): $(pwd)"
+          echo "--- repo root ---"; ls -la || true
+          echo "--- infra ---"; ls -la infra || true
+          echo "--- infra/terraform ---"; ls -la infra/terraform || true
+          if [ ! -d "infra/terraform" ]; then
+            echo "::error::Expected directory 'infra/terraform' not found in this PR branch."
+            echo "Make sure the PR includes the Terraform files (main.tf, providers.tf, backend.tf, etc.)."
+            exit 1
+          fi
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -78,7 +94,19 @@ jobs:
       run:
         working-directory: infra/terraform
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Guard for apply too
+      - name: Verify terraform path exists
+        working-directory: .
+        run: |
+          if [ ! -d "infra/terraform" ]; then
+            echo "::error::Expected directory 'infra/terraform' not found on main."
+            exit 1
+          fi
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4

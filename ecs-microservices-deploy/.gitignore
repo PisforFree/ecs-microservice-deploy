@@ -20,3 +20,10 @@ override.tf.json
 # OS / editor files
 .DS_Store
 Thumbs.db
+
+# Node / general
+node_modules/
+dist/
+.env
+.env.*
+.aws/
