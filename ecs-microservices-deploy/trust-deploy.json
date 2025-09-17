@@ -2,22 +2,7 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowPushesByRepoAndRef",
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::803767876973:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:repository": "PisforFree/ecs-microservice-deploy",
-          "token.actions.githubusercontent.com:ref": "refs/heads/main"
-        }
-      }
-    },
-    {
-      "Sid": "AllowPRsBySubjectPattern",
+      "Sid": "GitHubActionsOIDC",
       "Effect": "Allow",
       "Principal": {
         "Federated": "arn:aws:iam::803767876973:oidc-provider/token.actions.githubusercontent.com"
