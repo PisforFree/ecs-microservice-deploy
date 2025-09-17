@@ -9,13 +9,16 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:PisforFree/ecs-microservice-deploy:ref:refs/heads/main",
-            "repo:PisforFree/ecs-microservice-deploy:ref:refs/heads/dev"
+            "repo:PisforFree/ecs-microservice-deploy:ref:refs/heads/*",
+            "repo:PisforFree/ecs-microservice-deploy:pull_request"
           ]
         }
       }
     }
   ]
 }
+
