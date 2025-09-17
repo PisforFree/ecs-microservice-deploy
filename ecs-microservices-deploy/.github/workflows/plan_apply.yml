@@ -38,7 +38,6 @@ jobs:
             exit 1
           fi
 
-      # DEBUG: print OIDC aud + sub so we can match trust policy exactly
       - name: Inspect OIDC claims (debug)
         uses: actions/github-script@v7
         with:
@@ -114,7 +113,6 @@ jobs:
             exit 1
           fi
 
-      # DEBUG: print OIDC aud + sub for push-to-main
       - name: Inspect OIDC claims (debug)
         uses: actions/github-script@v7
         with:
