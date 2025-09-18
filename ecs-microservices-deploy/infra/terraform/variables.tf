@@ -1,45 +1,21 @@
-<<<<<<< HEAD
+// variables.tf — clean version (no conflict markers)
+
 variable "region" {
-  type    = string
-  default = "us-east-2"
+  description = "AWS region for all resources"
+  type        = string
 }
 
 variable "project_prefix" {
-  type    = string
-  default = "micro"
+  description = "Short prefix used for naming resources (e.g., 'micro')"
+  type        = string
 }
 
 variable "env" {
-  type    = string
-  default = "dev"
-}
-# trigger workflow
-# pr-trigger
-
-variable "image_uri" {
-  description = "ECR image URI for the ECS task definition"
+  description = "Deployment environment name (e.g., dev, prod)"
   type        = string
 }
-=======
-variable "region" {
-  type    = string
-  default = "us-east-2"
-}
-
-variable "project_prefix" {
-  type    = string
-  default = "micro"
-}
-
-variable "env" {
-  type    = string
-  default = "dev"
-}
-# trigger workflow
-# pr-trigger
 
 variable "image_uri" {
-  description = "ECR image URI for the ECS task definition"
+  description = "Full ECR image URI (prefer a pinned digest, e.g., 803767876973.dkr.ecr.us-east-2.amazonaws.com/microservice@sha256:...)"
   type        = string
 }
->>>>>>> 946af65 (Add these 3 files to the test/plan-pr branch)
