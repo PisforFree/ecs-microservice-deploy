@@ -1,21 +1,19 @@
-// variables.tf — clean version (no conflict markers)
-
 variable "region" {
   description = "AWS region for all resources"
   type        = string
 }
 
 variable "project_prefix" {
-  description = "Short prefix used for naming resources (e.g., 'micro')"
+  description = "Resource name prefix (e.g., micro)"
   type        = string
 }
 
 variable "env" {
-  description = "Deployment environment name (e.g., dev, prod)"
+  description = "Deployment environment (e.g., dev, prod)"
   type        = string
 }
 
 variable "image_uri" {
-  description = "Full ECR image URI (prefer a pinned digest, e.g., 803767876973.dkr.ecr.us-east-2.amazonaws.com/microservice@sha256:...)"
+  description = "ECR image URI (prefer a pinned digest)"
   type        = string
 }
