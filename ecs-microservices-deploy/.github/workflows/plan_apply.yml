@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        # <- this matches your repo: ecs-microservices-deploy/infra/terraform
         working-directory: ecs-microservices-deploy/infra/terraform
     steps:
       - name: Checkout repo
@@ -30,7 +31,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Guard: confirm the real path in this PR
       - name: Verify terraform path exists
         working-directory: .
         run: |
