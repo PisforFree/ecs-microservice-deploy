@@ -47,6 +47,40 @@ jobs:
         run: |
           terraform workspace select dev || terraform workspace new dev
 
+      - name: Locate dev.tfvars (robust)
+        id: tfvars
+        run: |
+          set -euo pipefail
+          echo "WORKDIR=$(pwd)"
+          echo "Tree from repo root:"
+          (cd "${GITHUB_WORKSPACE}" && ls -la && find . -maxdepth 3 -type d -name "environments" -print || true)
+
+          # Candidates (relative to current working-directory: ecs-microservices-deploy/infra/terraform)
+          CANDIDATES=(
+            "../../environments/dev/dev.tfvars"                                            # preferred (plural path)
+            "${GITHUB_WORKSPACE}/ecs-microservices-deploy/environments/dev/dev.tfvars"     # absolute plural
+            "${GITHUB_WORKSPACE}/ecs-microservice-deploy/environments/dev/dev.tfvars"      # absolute singular (fallback)
+            "${GITHUB_WORKSPACE}/environments/dev/dev.tfvars"                              # top-level environments (fallback)
+          )
+
+          FOUND=""
+          for p in "${CANDIDATES[@]}"; do
+            if [ -f "$p" ]; then
+              FOUND="$(realpath "$p")"
+              echo "Found tfvars at: $FOUND"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: Could not locate dev.tfvars in expected locations." >&2
+            echo "Searched:"
+            printf ' - %s\n' "${CANDIDATES[@]}" >&2
+            exit 1
+          fi
+
+          echo "TFVARS=$FOUND" >> "$GITHUB_ENV"
+
       - name: Terraform fmt & validate
         run: |
           terraform fmt -check
@@ -54,9 +88,10 @@ jobs:
 
       - name: Terraform plan
         run: |
+          echo "Using tfvars: $TFVARS"
           terraform plan \
             -input=false \
-            -var-file=../../environments/dev/dev.tfvars \
+            -var-file="$TFVARS" \
             -out=tfplan
 
   apply:
@@ -87,11 +122,35 @@ jobs:
       - name: Select workspace
         run: terraform workspace select dev
 
+      - name: Locate dev.tfvars (robust)
+        run: |
+          set -euo pipefail
+          CANDIDATES=(
+            "../../environments/dev/dev.tfvars"
+            "${GITHUB_WORKSPACE}/ecs-microservices-deploy/environments/dev/dev.tfvars"
+            "${GITHUB_WORKSPACE}/ecs-microservice-deploy/environments/dev/dev.tfvars"
+            "${GITHUB_WORKSPACE}/environments/dev/dev.tfvars"
+          )
+          FOUND=""
+          for p in "${CANDIDATES[@]}"; do
+            if [ -f "$p" ]; then
+              FOUND="$(realpath "$p")"
+              break
+            fi
+          done
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: dev.tfvars not found." >&2
+            printf ' - %s\n' "${CANDIDATES[@]}" >&2
+            exit 1
+          fi
+          echo "TFVARS=$FOUND" >> "$GITHUB_ENV"
+
       - name: Terraform apply
         run: |
+          echo "Using tfvars: $TFVARS"
           terraform plan \
             -input=false \
-            -var-file=../../environments/dev/dev.tfvars \
+            -var-file="$TFVARS" \
             -out=tfplan
           terraform apply -input=false -auto-approve tfplan
 
