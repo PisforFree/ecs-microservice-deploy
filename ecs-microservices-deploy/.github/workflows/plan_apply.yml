@@ -23,29 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: ecs-microservices-deploy/infra/terraform
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # Guard: confirm the real path in this PR
       - name: Verify terraform path exists
         working-directory: .
         run: |
-          [ -d infra/terraform ] || { echo "::error::infra/terraform not found"; exit 1; }
-
-      # ===== DEBUG OIDC CLAIMS =====
-      - name: Inspect OIDC claims (debug)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const core = require('@actions/core')
-            const token = await core.getIDToken('sts.amazonaws.com')
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
-            console.log('OIDC iss:', payload.iss)
-            console.log('OIDC aud:', payload.aud)
-            console.log('OIDC sub:', payload.sub)
-            console.log('OIDC repository:', payload.repository)
-            console.log('OIDC ref:', payload.ref)
+          echo "Repo root: $(pwd)"
+          ls -la
+          ls -la ecs-microservices-deploy || true
+          ls -la ecs-microservices-deploy/infra || true
+          ls -la ecs-microservices-deploy/infra/terraform || true
+          [ -d ecs-microservices-deploy/infra/terraform ] || { echo "::error::Expected path ecs-microservices-deploy/infra/terraform not found"; exit 1; }
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -55,7 +49,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_wrapper: false }
+        with:
+          terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
         run: terraform init -reconfigure
@@ -96,29 +91,17 @@ jobs:
     environment: dev
     defaults:
       run:
-        working-directory: infra/terraform
+        working-directory: ecs-microservices-deploy/infra/terraform
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Verify terraform path exists
         working-directory: .
         run: |
-          [ -d infra/terraform ] || { echo "::error::infra/terraform not found"; exit 1; }
-
-      # ===== DEBUG OIDC CLAIMS =====
-      - name: Inspect OIDC claims (debug)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const core = require('@actions/core')
-            const token = await core.getIDToken('sts.amazonaws.com')
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
-            console.log('OIDC iss:', payload.iss)
-            console.log('OIDC aud:', payload.aud)
-            console.log('OIDC sub:', payload.sub)
-            console.log('OIDC repository:', payload.repository)
-            console.log('OIDC ref:', payload.ref)
+          [ -d ecs-microservices-deploy/infra/terraform ] || { echo "::error::Expected path ecs-microservices-deploy/infra/terraform not found"; exit 1; }
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -128,7 +111,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-        with: { terraform_wrapper: false }
+        with:
+          terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
         run: terraform init -reconfigure
@@ -138,4 +122,3 @@ jobs:
 
       - name: Terraform apply (no input)
         run: terraform apply -auto-approve -input=false
-
