@@ -21,25 +21,26 @@ jobs:
   plan:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        # <- this matches your repo: ecs-microservices-deploy/infra/terraform
-        working-directory: ecs-microservices-deploy/infra/terraform
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify terraform path exists
-        working-directory: .
+      # Detect the Terraform working directory dynamically
+      - name: Detect Terraform directory
+        id: tfdir
         run: |
-          echo "Repo root: $(pwd)"
-          ls -la
-          ls -la ecs-microservices-deploy || true
-          ls -la ecs-microservices-deploy/infra || true
-          ls -la ecs-microservices-deploy/infra/terraform || true
-          [ -d ecs-microservices-deploy/infra/terraform ] || { echo "::error::Expected path ecs-microservices-deploy/infra/terraform not found"; exit 1; }
+          set -e
+          if [ -d "infra/terraform" ]; then
+            echo "path=infra/terraform" >> $GITHUB_OUTPUT
+          elif [ -d "ecs-microservices-deploy/infra/terraform" ]; then
+            echo "path=ecs-microservices-deploy/infra/terraform" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Could not find infra/terraform or ecs-microservices-deploy/infra/terraform"
+            exit 1
+          fi
+          echo "Using Terraform dir: $(cat $GITHUB_OUTPUT)"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -53,21 +54,26 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: terraform init -reconfigure
 
       - name: Select or create workspace
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: terraform workspace select dev || terraform workspace new dev
 
       - name: Terraform fmt & validate
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: |
           terraform fmt -check
-          terraform validate
+          terraform validate -var-file=environments/dev/dev.tfvars
 
       - name: Terraform plan (no input)
         id: plan
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: |
           set -e
-          terraform plan -no-color -input=false | tee plan.txt
+          terraform plan -no-color -input=false \
+            -var-file=environments/dev/dev.tfvars | tee plan.txt
           {
             echo "stdout<<EOF"
             cat plan.txt
@@ -89,19 +95,24 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: dev
-    defaults:
-      run:
-        working-directory: ecs-microservices-deploy/infra/terraform
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify terraform path exists
-        working-directory: .
+      - name: Detect Terraform directory
+        id: tfdir
         run: |
-          [ -d ecs-microservices-deploy/infra/terraform ] || { echo "::error::Expected path ecs-microservices-deploy/infra/terraform not found"; exit 1; }
+          set -e
+          if [ -d "infra/terraform" ]; then
+            echo "path=infra/terraform" >> $GITHUB_OUTPUT
+          elif [ -d "ecs-microservices-deploy/infra/terraform" ]; then
+            echo "path=ecs-microservices-deploy/infra/terraform" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Could not find infra/terraform or ecs-microservices-deploy/infra/terraform"
+            exit 1
+          fi
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -115,11 +126,14 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: terraform init -reconfigure
 
       - name: Select workspace
+        working-directory: ${{ steps.tfdir.outputs.path }}
         run: terraform workspace select dev
 
       - name: Terraform apply (no input)
-        run: terraform apply -auto-approve -input=false
+        working-directory: ${{ steps.tfdir.outputs.path }}
+        run: terraform apply -auto-approve -input=false -var-file=environments/dev/dev.tfvars
 
