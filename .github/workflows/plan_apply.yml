@@ -27,7 +27,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Detect the Terraform working directory dynamically
       - name: Detect Terraform directory
         id: tfdir
         run: |
@@ -40,7 +39,6 @@ jobs:
             echo "::error::Could not find infra/terraform or ecs-microservices-deploy/infra/terraform"
             exit 1
           fi
-          echo "Using Terraform dir: $(cat $GITHUB_OUTPUT)"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -65,7 +63,7 @@ jobs:
         working-directory: ${{ steps.tfdir.outputs.path }}
         run: |
           terraform fmt -check
-          terraform validate -var-file=environments/dev/dev.tfvars
+          terraform validate -var-file=../../environments/dev/dev.tfvars
 
       - name: Terraform plan (no input)
         id: plan
@@ -73,7 +71,7 @@ jobs:
         run: |
           set -e
           terraform plan -no-color -input=false \
-            -var-file=environments/dev/dev.tfvars | tee plan.txt
+            -var-file=../../environments/dev/dev.tfvars | tee plan.txt
           {
             echo "stdout<<EOF"
             cat plan.txt
@@ -135,5 +133,5 @@ jobs:
 
       - name: Terraform apply (no input)
         working-directory: ${{ steps.tfdir.outputs.path }}
-        run: terraform apply -auto-approve -input=false -var-file=environments/dev/dev.tfvars
+        run: terraform apply -auto-approve -input=false -var-file=../../environments/dev/dev.tfvars
 
