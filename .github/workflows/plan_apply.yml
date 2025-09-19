@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ecs-microservices-deploy/infra/terraform
+        working-directory: infra/terraform
 
     steps:
       - name: Checkout
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ecs-microservices-deploy/infra/terraform
+        working-directory: infra/terraform
 
     steps:
       - name: Checkout
