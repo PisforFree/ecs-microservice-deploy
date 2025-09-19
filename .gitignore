@@ -28,3 +28,7 @@ dist/
 .env.*
 .aws/
 /ecs-microservice-app/
+
+# ignore accidental nested copy
+/ecs-microservices-deploy/
+
