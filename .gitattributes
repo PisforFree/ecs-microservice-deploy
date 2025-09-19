@@ -1,0 +1,5 @@
+# Enforce LF for Terraform and text files
+*.tf   text eol=lf
+*.tfvars text eol=lf
+*.md   text eol=lf
+*      text=auto eol=lf
