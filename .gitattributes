@@ -1,0 +1,4 @@
+*.tf       text eol=lf
+*.tfvars   text eol=lf
+*.tf.json  text eol=lf
+*.tfvars.json text eol=lf
