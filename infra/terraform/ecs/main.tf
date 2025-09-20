@@ -1,96 +1,80 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
+#############################
+# ECS service (public subnets + public IP)
+#############################
 
 locals {
-  name = "${var.project_prefix}-${var.env}"
+  ecs_service_name = "${var.project_prefix}-${var.env}-ecs-service"
+}
+
+# Security group for the ECS service
+resource "aws_security_group" "app" {
+  name        = "${var.project_prefix}-${var.env}-svc-sg"
+  description = "Security group for ECS Fargate service"
+  vpc_id      = module.networking.vpc_id
+
+  # Egress: allow all (service reaches internet via public IP)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   tags = {
+    Name    = "${var.project_prefix}-${var.env}-svc-sg"
     Project = var.project_prefix
     Env     = var.env
     Managed = "terraform"
   }
 }
 
-# ----------------------------
-# CloudWatch Logs for the app
-# ----------------------------
-resource "aws_cloudwatch_log_group" "app" {
-  name              = "/ecs/${local.name}/app"
-  retention_in_days = var.log_retention_days
-  tags              = merge(local.tags, { Name = "${local.name}-app-logs" })
+# Only allow HTTP from the ALB security group to the service
+# (Assumes your ALB module/export is module.alb.sg_id; if your identifier differs,
+#  replace module.alb.sg_id with the correct SG id.)
+resource "aws_security_group_rule" "alb_to_app_http" {
+  type                     = "ingress"
+  from_port                = 80
+  to_port                  = 80
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.app.id
+  source_security_group_id = module.alb.sg_id
 }
 
-# ----------------------------
-# IAM: Task Execution Role
-# ----------------------------
-data "aws_iam_policy_document" "task_exec_assume" {
-  statement {
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["ecs-tasks.amazonaws.com"]
-    }
+# ECS service: run in public subnets and assign a public IP
+resource "aws_ecs_service" "app" {
+  name            = local.ecs_service_name
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.app.arn
+  launch_type     = "FARGATE"
+  desired_count   = 1
+  enable_execute_command = true
+
+  # —— KEY CHANGE for Step 11 ——
+  network_configuration {
+    subnets          = module.networking.public_subnet_ids   # use public subnets
+    security_groups  = [aws_security_group.app.id]
+    assign_public_ip = true                                   # give tasks a public IP
+  }
+
+  # If you front this with an ALB Target Group:
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app_tg.arn
+    container_name   = aws_ecs_task_definition.app.family
+    container_port   = 80
+  }
+
+  deployment_controller { type = "ECS" }
+
+  lifecycle {
+    # keep deployments from flapping on desired_count tweaks
+    ignore_changes = [desired_count]
+  }
+
+  tags = {
+    Name    = local.ecs_service_name
+    Project = var.project_prefix
+    Env     = var.env
+    Managed = "terraform"
   }
 }
 
-resource "aws_iam_role" "task_execution_role" {
-  name               = "${local.name}-task-exec-role"
-  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
-  tags               = merge(local.tags, { Name = "${local.name}-task-exec-role" })
-}
-
-# AWS-managed policy grants ECR pull + logs. (Do not duplicate perms yourself.)
-resource "aws_iam_role_policy_attachment" "task_exec_managed" {
-  role       = aws_iam_role.task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-}
-
-# ----------------------------
-# IAM: Task Role (app's own permissions)
-# Keep least privilege. Add policies later if your app needs AWS APIs.
-# ----------------------------
-resource "aws_iam_role" "task_role" {
-  name               = "${local.name}-task-role"
-  assume_role_policy = data.aws_iam_policy_document.task_exec_assume.json
-  tags               = merge(local.tags, { Name = "${local.name}-task-role" })
-}
-
-# ----------------------------
-# ECS Cluster + Capacity Providers
-# ----------------------------
-resource "aws_ecs_cluster" "this" {
-  name = "${local.name}-cluster"
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-  tags = merge(local.tags, { Name = "${local.name}-cluster" })
-}
-
-# Register Fargate & Fargate Spot
-resource "aws_ecs_cluster_capacity_providers" "this" {
-  cluster_name       = aws_ecs_cluster.this.name
-  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
-
-  default_capacity_provider_strategy {
-    capacity_provider = "FARGATE"
-    weight            = 1
-  }
-
-  # Optionally add SPOT weight for cost tests (kept 0 by default to avoid surprise preemption in dev)
-  dynamic "default_capacity_provider_strategy" {
-    for_each = var.use_fargate_spot_weight > 0 ? [1] : []
-    content {
-      capacity_provider = "FARGATE_SPOT"
-      weight            = var.use_fargate_spot_weight
-    }
-  }
-}
-
-# NOTE: ECS creates/uses a service-linked role 'AWSServiceRoleForECS' automatically.
-# Your deploy role needs iam:CreateServiceLinkedRole the first time if it doesn't exist.
