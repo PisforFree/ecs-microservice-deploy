@@ -12,7 +12,6 @@ permissions:
   pull-requests: write
   id-token: write
 
-# Helpful to avoid overlapping Terraform runs
 concurrency:
   group: terraform-ecs-deploy
   cancel-in-progress: true
@@ -61,11 +60,10 @@ jobs:
           if [ ! -f "$TFVARS" ]; then
             echo "Expected tfvars not found at: $TFVARS"
             echo "--- DEBUG TREE ---"
-            pwd
-            ls -la
-            echo "---- envs ----"
+            pwd && ls -la
+            echo "---- environments ----"
             ls -la environments || true
-            echo "---- dev ----"
+            echo "---- environments/dev ----"
             ls -la environments/dev || true
             exit 1
           fi
@@ -75,7 +73,6 @@ jobs:
         run: |
           set -euo pipefail
           terraform fmt -recursive -check
-          # validate does not accept -var-file; run after init so it can load providers/modules
           terraform validate -no-color
 
       - name: Terraform plan
@@ -122,11 +119,10 @@ jobs:
           if [ ! -f "$TFVARS" ]; then
             echo "Expected tfvars not found at: $TFVARS"
             echo "--- DEBUG TREE ---"
-            pwd
-            ls -la
-            echo "---- envs ----"
+            pwd && ls -la
+            echo "---- environments ----"
             ls -la environments || true
-            echo "---- dev ----"
+            echo "---- environments/dev ----"
             ls -la environments/dev || true
             exit 1
           fi
