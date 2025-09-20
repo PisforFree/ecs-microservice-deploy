@@ -24,7 +24,7 @@ jobs:
     defaults:
       run:
         working-directory: infra/terraform
-
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -45,6 +45,7 @@ jobs:
 
       - name: Select or create workspace
         run: |
+          set -euo pipefail
           terraform workspace select dev || terraform workspace new dev
 
       - name: Verify tfvars exists
@@ -66,16 +67,15 @@ jobs:
 
       - name: Terraform fmt & validate
         run: |
-          terraform fmt -check
+          set -euo pipefail
+          terraform fmt -recursive -check
           terraform validate
 
       - name: Terraform plan
         run: |
+          set -euo pipefail
           echo "Using tfvars: $TFVARS"
-          terraform plan \
-            -input=false \
-            -var-file="$TFVARS" \
-            -out=tfplan
+          terraform plan -input=false -var-file="$TFVARS" -out=tfplan
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -83,7 +83,7 @@ jobs:
     defaults:
       run:
         working-directory: infra/terraform
-
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,8 +102,10 @@ jobs:
       - name: Terraform init (reconfigure)
         run: terraform init -reconfigure
 
-      - name: Select workspace
-        run: terraform workspace select dev
+      - name: Select or create workspace
+        run: |
+          set -euo pipefail
+          terraform workspace select dev || terraform workspace new dev
 
       - name: Verify tfvars exists
         run: |
@@ -124,10 +126,9 @@ jobs:
 
       - name: Terraform apply
         run: |
+          set -euo pipefail
           echo "Using tfvars: $TFVARS"
-          terraform plan \
-            -input=false \
-            -var-file="$TFVARS" \
-            -out=tfplan
+          terraform plan -input=false -var-file="$TFVARS" -out=tfplan
           terraform apply -input=false -auto-approve tfplan
+
 
