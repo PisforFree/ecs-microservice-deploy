@@ -12,6 +12,11 @@ permissions:
   pull-requests: write
   id-token: write
 
+# Helpful to avoid overlapping Terraform runs
+concurrency:
+  group: terraform-ecs-deploy
+  cancel-in-progress: true
+
 env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -23,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
         shell: bash
+        working-directory: infra/terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,25 +46,26 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
-        run: terraform init -reconfigure
+        run: terraform init -input=false -reconfigure
 
-      - name: Select or create workspace
+      - name: Select or create workspace (dev)
         run: |
           set -euo pipefail
           terraform workspace select dev || terraform workspace new dev
+          terraform workspace show
 
-      - name: Verify tfvars exists
+      - name: Verify tfvars exists and export path
         run: |
           set -euo pipefail
           TFVARS="$(pwd)/environments/dev/dev.tfvars"
           if [ ! -f "$TFVARS" ]; then
             echo "Expected tfvars not found at: $TFVARS"
-            echo "Listing tree for debugging:"
+            echo "--- DEBUG TREE ---"
             pwd
             ls -la
-            echo "----"
+            echo "---- envs ----"
             ls -la environments || true
-            echo "----"
+            echo "---- dev ----"
             ls -la environments/dev || true
             exit 1
           fi
@@ -69,21 +75,22 @@ jobs:
         run: |
           set -euo pipefail
           terraform fmt -recursive -check
-          terraform validate
+          # validate does not accept -var-file; run after init so it can load providers/modules
+          terraform validate -no-color
 
       - name: Terraform plan
         run: |
           set -euo pipefail
           echo "Using tfvars: $TFVARS"
-          terraform plan -input=false -var-file="$TFVARS" -out=tfplan
+          terraform plan -input=false -no-color -var-file="$TFVARS" -out=tfplan
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform
         shell: bash
+        working-directory: infra/terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,35 +107,36 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform init (reconfigure)
-        run: terraform init -reconfigure
+        run: terraform init -input=false -reconfigure
 
-      - name: Select or create workspace
+      - name: Select or create workspace (dev)
         run: |
           set -euo pipefail
           terraform workspace select dev || terraform workspace new dev
+          terraform workspace show
 
-      - name: Verify tfvars exists
+      - name: Verify tfvars exists and export path
         run: |
           set -euo pipefail
           TFVARS="$(pwd)/environments/dev/dev.tfvars"
           if [ ! -f "$TFVARS" ]; then
             echo "Expected tfvars not found at: $TFVARS"
-            echo "Listing tree for debugging:"
+            echo "--- DEBUG TREE ---"
             pwd
             ls -la
-            echo "----"
+            echo "---- envs ----"
             ls -la environments || true
-            echo "----"
+            echo "---- dev ----"
             ls -la environments/dev || true
             exit 1
           fi
           echo "TFVARS=$TFVARS" >> "$GITHUB_ENV"
 
-      - name: Terraform apply
+      - name: Terraform plan & apply
         run: |
           set -euo pipefail
           echo "Using tfvars: $TFVARS"
-          terraform plan -input=false -var-file="$TFVARS" -out=tfplan
+          terraform plan -input=false -no-color -var-file="$TFVARS" -out=tfplan
           terraform apply -input=false -auto-approve tfplan
 
 
