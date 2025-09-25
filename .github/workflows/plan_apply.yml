@@ -59,10 +59,8 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
-      - name: Terraform workspace (dev)
-        run: |
-          terraform workspace list | sed 's/*//g' | grep -q "^dev$" || terraform workspace new dev
-          terraform workspace select dev
+      - name: Select Terraform workspace
+        run: terraform workspace select dev || terraform workspace new dev
 
       - name: Terraform plan
         if: github.event_name == 'pull_request'
