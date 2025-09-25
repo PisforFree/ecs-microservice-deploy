@@ -1,0 +1,84 @@
+name: Deploy - Terraform Plan & Apply
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "environments/**"
+      - ".github/workflows/plan_apply.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "environments/**"
+      - ".github/workflows/plan_apply.yml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_WORKDIR: infra/terraform
+  TF_VARS:    environments/dev/dev.tfvars
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKDIR }}
+    concurrency:
+      group: deploy-terraform
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform fmt
+        run: terraform fmt -check
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform workspace (dev)
+        run: |
+          terraform workspace list | sed 's/*//g' | grep -q "^dev$" || terraform workspace new dev
+          terraform workspace select dev
+
+      - name: Terraform plan
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false -no-color -var-file="${{ env.TF_VARS }}"
+        continue-on-error: false
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: ${{ env.TF_WORKDIR }}/plan.out.txt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Terraform apply
+        if: github.event_name == 'push'
+        run: terraform apply -input=false -auto-approve -var-file="${{ env.TF_VARS }}"
