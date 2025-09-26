@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "EcrPushMinimal",
+    "Effect": "Allow",
+    "Action": [
+      "ecr:GetAuthorizationToken",
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:PutImage",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:DescribeRepositories",
+      "ecr:DescribeImages",
+      "sts:GetCallerIdentity"
+    ],
+    "Resource": "*"
+  }]
+}

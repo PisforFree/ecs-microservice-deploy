@@ -37,7 +37,7 @@ module "alb" {
 
   vpc_id                = module.networking.vpc_id
   public_subnet_ids     = module.networking.public_subnet_ids
-  alb_security_group_id = module.networking.alb_security_group_id
+  alb_security_group_ids = var.alb_security_group_ids
 
   app_port          = 80        # keep in sync with ECS service
   health_check_path = "/health" # change if your app uses /status, etc.

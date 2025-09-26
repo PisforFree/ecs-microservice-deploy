@@ -1,0 +1,48 @@
+{
+    "Version":  "2012-10-17",
+    "Statement":  [
+                      {
+                          "Effect":  "Allow",
+                          "Sid":  "AllowGetBucketLocation",
+                          "Principal":  {
+                                            "AWS":  "arn:aws:iam::803767876973:role/GitHubTerraformDeployRole"
+                                        },
+                          "Resource":  "arn:aws:s3:::tfstate-brant-202509221842",
+                          "Action":  [
+                                         "s3:GetBucketLocation"
+                                     ]
+                      },
+                      {
+                          "Action":  [
+                                         "s3:ListBucket"
+                                     ],
+                          "Condition":  {
+                                            "StringLike":  {
+                                                               "s3:prefix":  [
+                                                                                 "envs/dev",
+                                                                                 "envs/dev/*"
+                                                                             ]
+                                                           }
+                                        },
+                          "Principal":  {
+                                            "AWS":  "arn:aws:iam::803767876973:role/GitHubTerraformDeployRole"
+                                        },
+                          "Resource":  "arn:aws:s3:::tfstate-brant-202509221842",
+                          "Effect":  "Allow",
+                          "Sid":  "AllowListBucketForStatePrefix"
+                      },
+                      {
+                          "Effect":  "Allow",
+                          "Sid":  "AllowStateObjectAccessForRole",
+                          "Principal":  {
+                                            "AWS":  "arn:aws:iam::803767876973:role/GitHubTerraformDeployRole"
+                                        },
+                          "Resource":  "arn:aws:s3:::tfstate-brant-202509221842/envs/dev/*",
+                          "Action":  [
+                                         "s3:GetObject",
+                                         "s3:PutObject",
+                                         "s3:DeleteObject"
+                                     ]
+                      }
+                  ]
+}

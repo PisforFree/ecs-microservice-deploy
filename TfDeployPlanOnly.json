@@ -1,0 +1,25 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "ReadDescribeForPlan",
+    "Effect": "Allow",
+    "Action": [
+      "ec2:Describe*",
+      "elasticloadbalancing:Describe*",
+      "ecs:Describe*",
+      "ecs:List*",
+      "iam:Get*",
+      "iam:List*",
+      "logs:Describe*",
+      "logs:List*",
+      "cloudwatch:Describe*",
+      "cloudwatch:Get*",
+      "cloudwatch:List*",
+      "ecr:Describe*",
+      "sts:GetCallerIdentity",
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ],
+    "Resource": "*"
+  }]
+}
