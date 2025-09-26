@@ -5,13 +5,11 @@ on:
     branches: [main]
     paths:
       - "infra/terraform/**"
-      - "environments/**"
       - ".github/workflows/plan_apply.yml"
   push:
     branches: [main]
     paths:
       - "infra/terraform/**"
-      - "environments/**"
       - ".github/workflows/plan_apply.yml"
   workflow_dispatch:
 
@@ -30,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
+        shell: bash
         working-directory: ${{ env.TF_WORKDIR }}
     concurrency:
       group: deploy-terraform
@@ -44,14 +43,15 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
+          output-credentials: true
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      - name: Terraform init
-        run: terraform init -input=false
+      - name: Terraform init (reconfigure backend)
+        run: terraform init -input=false -reconfigure
 
       - name: Terraform fmt
         run: terraform fmt -check
@@ -59,20 +59,31 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
-      - name: Select Terraform workspace
-        run: terraform workspace select dev || terraform workspace new dev
+      - name: Terraform workspace (ensure dev)
+        run: |
+          terraform workspace list | sed 's/*//g' | grep -q "^dev$" || terraform workspace new dev
+          terraform workspace select dev
+          terraform workspace show
+
+      # Sanity check: prove TG exists in remote 'dev' state (for visibility in CI logs)
+      - name: Show TG in state (dev)
+        run: |
+          set -e
+          terraform state list | grep -E '^module\.alb\.aws_lb_target_group\.app$' || true
+          terraform state show -no-color module.alb.aws_lb_target_group.app | sed -n 's/^\s*id\s*=\s*//p' || true
 
       - name: Terraform plan
         if: github.event_name == 'pull_request'
-        run: terraform plan -input=false -no-color -var-file="${{ env.TF_VARS }}"
-        continue-on-error: false
+        run: |
+          set -e
+          terraform plan -input=false -no-color -var-file="${{ env.TF_VARS }}" | tee plan.out.txt
 
       - name: Comment plan on PR
         if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           recreate: true
-          path: ${{ env.TF_WORKDIR }}/plan.out.txt
+          path: infra/terraform/plan.out.txt
         env:
           GITHUB_TOKEN: ${{ github.token }}
         continue-on-error: true

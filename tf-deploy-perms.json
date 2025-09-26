@@ -117,6 +117,16 @@
         "elasticloadbalancing:DescribeTags"
       ],
       "Resource": "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/micro-dev-alb/*"
+    },
+    {
+      "Sid": "Elbv2SetSubnets",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:SetSubnets",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "ec2:DescribeSubnets"
+      ],
+      "Resource": "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/micro-dev-alb/*"
     }
 
   ]
