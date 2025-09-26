@@ -7,6 +7,10 @@ variable "alb_security_group_ids" {
   type = list(string)
 }
 
+variable "alb_subnet_ids" {
+  type = list(string)
+}
+
 variable "app_port" {
   type    = number
   default = 3000
@@ -16,3 +20,4 @@ variable "health_check_path" {
   type    = string
   default = "/health"
 }
+

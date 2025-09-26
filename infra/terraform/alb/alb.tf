@@ -9,7 +9,7 @@ resource "aws_lb" "this" {
   internal           = false
 
   security_groups = var.alb_security_group_ids
-  subnets         = var.public_subnet_ids
+  subnets         = var.alb_subnet_ids
 
   tags = {
     Name    = "${var.project_prefix}-${var.env}-alb"
