@@ -16,7 +16,8 @@ on:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   TF_WORKDIR: infra/terraform
-  TF_VARS:    environments/dev/dev.tfvars
+  TF_VARS: environments/dev/dev.tfvars
+  TF_IN_AUTOMATION: "true"
 
 permissions:
   id-token: write
@@ -53,12 +54,24 @@ jobs:
       - name: Terraform init (reconfigure backend)
         run: terraform init -input=false -reconfigure
 
+      # One-off: prove CI can see the exact subnets defined in tfvars
+      - name: Debug ALB networking (one-off)
+        run: |
+          set -euo pipefail
+          echo "Region: ${{ env.AWS_REGION }}"
+          echo "Using tfvars:"
+          sed -n '1,120p' "${{ env.TF_VARS }}"
+          echo "--- Check subnets from same role/region ---"
+          SUBNETS=$(grep -E '^\s*alb_subnet_ids' -n "${{ env.TF_VARS }}" | sed -E 's/.*\[(.*)\].*/\1/' | tr -d '"' | tr ',' ' ')
+          echo "Parsed subnets from tfvars: $SUBNETS"
+          aws ec2 describe-subnets --subnet-ids $SUBNETS --query 'Subnets[].SubnetId' --output text
+
       - name: Terraform fmt
         run: terraform fmt -check
 
       - name: Terraform validate
         run: terraform validate
-      
+
       # Create if missing (ignore "already exists"), then select
       - name: Terraform workspace (ensure dev)
         run: |
@@ -67,7 +80,7 @@ jobs:
           terraform workspace select dev
           terraform workspace show
 
-      # Sanity check: prove TG exists in remote 'dev' state (for visibility in CI logs)
+      # Visibility: prove TG exists in remote 'dev' state
       - name: Show TG in state (dev)
         run: |
           set -e
@@ -78,7 +91,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           set -e
-          terraform plan -input=false -no-color -var-file="${{ env.TF_VARS }}" | tee plan.out.txt
+          terraform plan -input=false -no-color -compact-warnings -var-file="${{ env.TF_VARS }}" | tee plan.out.txt
 
       - name: Comment plan on PR
         if: github.event_name == 'pull_request'

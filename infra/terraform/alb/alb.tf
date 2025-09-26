@@ -2,7 +2,6 @@
 # Application Load Balancer + Target Group #
 ############################################
 
-# ALB (public) in the provided subnets with the provided SG
 resource "aws_lb" "this" {
   name               = "${var.project_prefix}-${var.env}-alb"
   load_balancer_type = "application"
@@ -19,8 +18,6 @@ resource "aws_lb" "this" {
 }
 
 # Target group for ECS Fargate tasks (IP mode).
-# IMPORTANT: create_before_destroy + a unique name suffix allow safe replacement
-# when changing ports (e.g., 3000 -> 80) without "ResourceInUse" errors.
 resource "aws_lb_target_group" "app" {
   name        = "${var.project_prefix}-${var.env}-tg-${var.app_port}"
   port        = var.app_port
@@ -29,7 +26,7 @@ resource "aws_lb_target_group" "app" {
   target_type = "ip"
 
   health_check {
-    path                = "/"
+    path                = var.health_check_path
     protocol            = "HTTP"
     matcher             = "200-399"
     interval            = 30

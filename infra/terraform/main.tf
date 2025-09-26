@@ -4,6 +4,7 @@ locals {
   region         = var.region
 }
 
+# Builds a NEW VPC for ECS etc. (fine to keep for now)
 module "networking" {
   source = "./networking"
 
@@ -17,6 +18,21 @@ module "networking" {
   app_port             = 80
 }
 
+# IMPORTANT:
+# Pin ALB to the EXISTING VPC and EXISTING public subnets from dev.tfvars
+module "alb" {
+  source = "./alb"
+
+  project_prefix         = var.project_prefix
+  env                    = var.env
+  vpc_id                 = var.vpc_id
+  alb_subnet_ids         = var.alb_subnet_ids
+  alb_security_group_ids = var.alb_security_group_ids
+
+  app_port          = 80
+  health_check_path = "/" # keep "/" to match imported TG
+}
+
 module "ecs" {
   source = "./ecs"
 
@@ -28,20 +44,4 @@ module "ecs" {
   ecs_service_security_group_id = module.networking.ecs_service_security_group_id
   target_group_arn              = module.alb.tg_arn
 }
-
-module "alb" {
-  source = "./alb"
-
-  project_prefix = var.project_prefix
-  env            = var.env
-
-  vpc_id                 = module.networking.vpc_id
-  public_subnet_ids      = module.networking.public_subnet_ids
-  alb_security_group_ids = var.alb_security_group_ids
-  alb_subnet_ids         = var.alb_subnet_ids
-
-  app_port          = 80        # keep in sync with ECS service
-  health_check_path = "/health" # change if your app uses /status, etc.
-}
-
 
