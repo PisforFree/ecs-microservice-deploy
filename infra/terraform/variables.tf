@@ -14,6 +14,6 @@ variable "env" {
 }
 
 variable "alb_security_group_ids" {
-  type = list(string)
+  type        = list(string)
   description = "List of security group IDs to attach to the ALB"
 }

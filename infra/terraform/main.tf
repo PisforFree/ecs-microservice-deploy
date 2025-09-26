@@ -35,8 +35,8 @@ module "alb" {
   project_prefix = var.project_prefix
   env            = var.env
 
-  vpc_id                = module.networking.vpc_id
-  public_subnet_ids     = module.networking.public_subnet_ids
+  vpc_id                 = module.networking.vpc_id
+  public_subnet_ids      = module.networking.public_subnet_ids
   alb_security_group_ids = var.alb_security_group_ids
 
   app_port          = 80        # keep in sync with ECS service
