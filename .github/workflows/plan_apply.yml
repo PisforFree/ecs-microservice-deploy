@@ -58,10 +58,12 @@ jobs:
 
       - name: Terraform validate
         run: terraform validate
-
+      
+      # Create if missing (ignore "already exists"), then select
       - name: Terraform workspace (ensure dev)
         run: |
-          terraform workspace list | sed 's/*//g' | grep -q "^dev$" || terraform workspace new dev
+          set -e
+          terraform workspace new dev >/dev/null 2>&1 || true
           terraform workspace select dev
           terraform workspace show
 
