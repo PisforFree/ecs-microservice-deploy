@@ -2,6 +2,23 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "ReadDescribeBasics",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*",
+        "elasticloadbalancing:Describe*",
+        "iam:Get*",
+        "iam:List*",
+        "logs:Describe*",
+        "cloudwatch:Get*",
+        "cloudwatch:List*",
+        "cloudwatch:Describe*",
+        "ecr:Describe*",
+        "ecr:GetAuthorizationToken"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "EcsCluster",
       "Effect": "Allow",
       "Action": [
@@ -29,6 +46,18 @@
       "Resource": "*"
     },
     {
+      "Sid": "EcsServiceManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:DeleteService",
+        "ecs:DescribeServices",
+        "ecs:ListServices"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "IamRolesForEcs",
       "Effect": "Allow",
       "Action": [
@@ -52,7 +81,9 @@
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::*:role/micro-dev-ecs-*",
       "Condition": {
-        "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" }
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
       }
     },
     {
@@ -64,7 +95,9 @@
         "logs:PutRetentionPolicy",
         "logs:DescribeLogGroups",
         "logs:TagResource",
-        "logs:UntagResource"
+        "logs:UntagResource",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
       ],
       "Resource": [
         "arn:aws:logs:*:*:log-group:/ecs/micro-dev-app",
@@ -114,7 +147,8 @@
         "elasticloadbalancing:SetSecurityGroups",
         "elasticloadbalancing:DescribeLoadBalancers",
         "elasticloadbalancing:DescribeListeners",
-        "elasticloadbalancing:DescribeTags"
+        "elasticloadbalancing:DescribeTags",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes"
       ],
       "Resource": "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/micro-dev-alb/*"
     },
@@ -123,11 +157,11 @@
       "Effect": "Allow",
       "Action": [
         "elasticloadbalancing:SetSubnets",
+        "elasticloadbalancing:ModifyTargetGroupAttributes",
         "elasticloadbalancing:DescribeLoadBalancers",
         "ec2:DescribeSubnets"
       ],
       "Resource": "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/micro-dev-alb/*"
     }
-
   ]
 }

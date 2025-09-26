@@ -7,8 +7,17 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   internal           = false
 
+  # Keep these set to your existing values from tfvars
   security_groups = var.alb_security_group_ids
   subnets         = var.alb_subnet_ids
+
+  # IMPORTANT: Don't try to mutate subnets/SGs on an existing ALB
+  lifecycle {
+    ignore_changes = [
+      subnets,
+      security_groups
+    ]
+  }
 
   tags = {
     Name    = "${var.project_prefix}-${var.env}-alb"
@@ -46,7 +55,6 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
-# HTTP listener on :80 forwarding to the TG
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
