@@ -14,26 +14,17 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}              # should be "us-east-2"
   TF_WORKDIR: infra/terraform
-  TF_VARS: environments/dev/dev.tfvars
-  TF_IN_AUTOMATION: "true"
+  TF_VARS:    environments/dev/dev.tfvars
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
 
 jobs:
-  terraform:
+  deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ env.TF_WORKDIR }}
-    concurrency:
-      group: deploy-terraform
-      cancel-in-progress: false
 
     steps:
       - name: Checkout
@@ -44,65 +35,72 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-          output-credentials: true
+
+      - name: Show AWS caller identity & region
+        run: |
+          echo "AWS_REGION=${AWS_REGION}"
+          aws sts get-caller-identity
+          aws configure list
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.6
+          terraform_wrapper: false
 
-      - name: Terraform init (reconfigure backend)
-        run: terraform init -input=false -reconfigure
+      - name: Debug — Show tfvars
+        run: |
+          cat ${{ env.TF_WORKDIR }}/${{ env.TF_VARS }}
 
-      # One-off: prove CI can see the exact subnets defined in tfvars
-      - name: Debug ALB networking (one-off)
+      - name: Debug — Describe ALB and validate its subnets/SGs
+        shell: bash
         run: |
           set -euo pipefail
-          echo "Region: ${{ env.AWS_REGION }}"
-          echo "Using tfvars:"
-          sed -n '1,120p' "${{ env.TF_VARS }}"
-          echo "--- Check subnets from same role/region ---"
-          SUBNETS=$(grep -E '^\s*alb_subnet_ids' -n "${{ env.TF_VARS }}" | sed -E 's/.*\[(.*)\].*/\1/' | tr -d '"' | tr ',' ' ')
-          echo "Parsed subnets from tfvars: $SUBNETS"
-          aws ec2 describe-subnets --subnet-ids $SUBNETS --query 'Subnets[].SubnetId' --output text
+          ALB_NAME="micro-dev-alb"
+          echo "Describing ALB: ${ALB_NAME} in ${AWS_REGION}"
+          ALB_JSON=$(aws elbv2 describe-load-balancers --names "${ALB_NAME}" --region "${AWS_REGION}")
+          echo "${ALB_JSON}" | jq
 
-      - name: Terraform fmt
+          VPC_ID=$(echo "${ALB_JSON}" | jq -r '.LoadBalancers[0].VpcId')
+          SGs=$(echo "${ALB_JSON}"  | jq -r '.LoadBalancers[0].SecurityGroups[]')
+          SUBNETS=$(echo "${ALB_JSON}" | jq -r '.LoadBalancers[0].AvailabilityZones[].SubnetId')
+
+          echo "ALB VPC: ${VPC_ID}"
+          echo "ALB SGs:"
+          echo "${SGs}"
+          echo "ALB Subnets:"
+          echo "${SUBNETS}"
+
+          echo "Verifying each subnet exists in ${AWS_REGION}..."
+          for S in ${SUBNETS}; do
+            echo " - ${S}"
+            aws ec2 describe-subnets --subnet-ids "${S}" --region "${AWS_REGION}" >/dev/null
+          done
+          echo "Subnet verification complete."
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform init -upgrade
+
+      - name: Terraform Fmt
+        working-directory: ${{ env.TF_WORKDIR }}
         run: terraform fmt -check
 
-      - name: Terraform validate
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKDIR }}
         run: terraform validate
 
-      # Create if missing (ignore "already exists"), then select
-      - name: Terraform workspace (ensure dev)
+      - name: Terraform Workspace (dev)
+        working-directory: ${{ env.TF_WORKDIR }}
         run: |
-          set -e
-          terraform workspace new dev >/dev/null 2>&1 || true
+          terraform workspace new dev || true
           terraform workspace select dev
-          terraform workspace show
 
-      # Visibility: prove TG exists in remote 'dev' state
-      - name: Show TG in state (dev)
-        run: |
-          set -e
-          terraform state list | grep -E '^module\.alb\.aws_lb_target_group\.app$' || true
-          terraform state show -no-color module.alb.aws_lb_target_group.app | sed -n 's/^\s*id\s*=\s*//p' || true
+      - name: Terraform Plan
+        if: github.event_name != 'push'
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform plan -var-file="${{ env.TF_VARS }}"
 
-      - name: Terraform plan
-        if: github.event_name == 'pull_request'
-        run: |
-          set -e
-          terraform plan -input=false -no-color -compact-warnings -var-file="${{ env.TF_VARS }}" | tee plan.out.txt
-
-      - name: Comment plan on PR
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          recreate: true
-          path: infra/terraform/plan.out.txt
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        continue-on-error: true
-
-      - name: Terraform apply
+      - name: Terraform Apply (main pushes only)
         if: github.event_name == 'push'
-        run: terraform apply -input=false -auto-approve -var-file="${{ env.TF_VARS }}"
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform apply -auto-approve -var-file="${{ env.TF_VARS }}"
