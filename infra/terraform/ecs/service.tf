@@ -6,6 +6,20 @@ resource "aws_ecs_service" "app" {
   launch_type      = "FARGATE"
   platform_version = "1.4.0"
 
+  deployment_circuit_breaker {
+    enable   = true   # turn on circuit breaker
+    rollback = true   # auto-rollback to last RUNNING task set if deployment fails
+  }
+
+  # (Optional) tweak rollout speed; not required for circuit breaker
+  # deployment_minimum_healthy_percent = 100
+  # deployment_maximum_percent         = 200
+
+  # (FYI) deployment_controller defaults to "ECS" (rolling update), which supports circuit breaker:
+  # deployment_controller {
+  #   type = "ECS"
+  # }
+
   network_configuration {
     subnets          = var.private_subnet_ids
     security_groups  = [var.ecs_service_security_group_id]
