@@ -38,6 +38,15 @@ resource "aws_ecs_task_definition" "app" {
           awslogs-stream-prefix = "ecs"
         }
       }
+
+      # 🔴 TEMPORARY failing health check to trigger ECS rollback
+      healthCheck = {
+        command     = ["CMD-SHELL", "exit 1"]
+        interval    = 5
+        timeout     = 2
+        retries     = 2
+        startPeriod = 0
+      }
     }
-  ])
+  ]) 
 }
