@@ -1,106 +1,82 @@
-name: Deploy - Terraform Plan & Apply
+name: Deploy — Terraform plan & apply
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "infra/terraform/**"
-      - ".github/workflows/plan_apply.yml"
   push:
     branches: [main]
     paths:
       - "infra/terraform/**"
+      - "environments/**"
+      - ".github/workflows/plan_apply.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
+      - "environments/**"
       - ".github/workflows/plan_apply.yml"
   workflow_dispatch:
-
-env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}              # should be "us-east-2"
-  TF_WORKDIR: infra/terraform
-  TF_VARS:    environments/dev/dev.tfvars
 
 permissions:
   id-token: write
   contents: read
 
+env:
+  AWS_REGION:         ${{ secrets.AWS_REGION }}
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_TF_DEPLOY_ROLE }}   # e.g. arn:aws:iam::<acct>:role/GitHubTerraformDeployRole
+  TF_WORKING_DIR:     infra/terraform
+  TF_WORKSPACE:       dev
+
 jobs:
-  deploy:
+  plan-apply:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout (deploy repo)
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-
-      - name: Show AWS caller identity & region
-        run: |
-          echo "AWS_REGION=${AWS_REGION}"
-          aws sts get-caller-identity
-          aws configure list
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-session-name: tf-deploy
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+
+      - name: Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Select workspace
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform workspace select ${{ env.TF_WORKSPACE }} || terraform workspace new ${{ env.TF_WORKSPACE }}
+
+      - name: Fmt & Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform fmt -recursive
+          terraform validate
+
+      - name: Plan (dev)
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -var-file="../../environments/dev/dev.tfvars" \
+            -var-file="../../environments/dev/app.auto.tfvars" \
+            -out=tfplan
+
+      # Upload plan on PRs for review
+      - name: Upload plan artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
-          terraform_wrapper: false
+          name: tfplan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
 
-      - name: Debug — Show tfvars
-        run: |
-          cat ${{ env.TF_WORKDIR }}/${{ env.TF_VARS }}
-
-      - name: Debug — Describe ALB and validate its subnets/SGs
-        shell: bash
-        run: |
-          set -euo pipefail
-          ALB_NAME="micro-dev-alb"
-          echo "Describing ALB: ${ALB_NAME} in ${AWS_REGION}"
-          ALB_JSON=$(aws elbv2 describe-load-balancers --names "${ALB_NAME}" --region "${AWS_REGION}")
-          echo "${ALB_JSON}" | jq
-
-          VPC_ID=$(echo "${ALB_JSON}" | jq -r '.LoadBalancers[0].VpcId')
-          SGs=$(echo "${ALB_JSON}"  | jq -r '.LoadBalancers[0].SecurityGroups[]')
-          SUBNETS=$(echo "${ALB_JSON}" | jq -r '.LoadBalancers[0].AvailabilityZones[].SubnetId')
-
-          echo "ALB VPC: ${VPC_ID}"
-          echo "ALB SGs:"
-          echo "${SGs}"
-          echo "ALB Subnets:"
-          echo "${SUBNETS}"
-
-          echo "Verifying each subnet exists in ${AWS_REGION}..."
-          for S in ${SUBNETS}; do
-            echo " - ${S}"
-            aws ec2 describe-subnets --subnet-ids "${S}" --region "${AWS_REGION}" >/dev/null
-          done
-          echo "Subnet verification complete."
-
-      - name: Terraform Init
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: terraform init -upgrade
-
-      - name: Terraform Fmt
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: terraform fmt -check
-
-      - name: Terraform Validate
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: terraform validate
-
-      - name: Terraform Workspace (dev)
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: |
-          terraform workspace new dev || true
-          terraform workspace select dev
-
-      - name: Terraform Plan
-        if: github.event_name != 'push'
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: terraform plan -var-file="${{ env.TF_VARS }}"
-
-      - name: Terraform Apply (main pushes only)
+      # Apply only on push to main
+      - name: Apply (dev)
         if: github.event_name == 'push'
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: terraform apply -auto-approve -var-file="${{ env.TF_VARS }}"
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
