@@ -42,6 +42,7 @@ jobs:
           audience: sts.amazonaws.com
           output-env-credentials: true
 
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
