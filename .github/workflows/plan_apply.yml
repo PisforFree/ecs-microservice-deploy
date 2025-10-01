@@ -61,10 +61,13 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -input=false
 
-      - name: Select workspace
+      - name: Show active workspace (from env)
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          TF_WORKSPACE: ${{ env.TF_WORKSPACE }}
         run: |
-          terraform workspace select ${{ env.TF_WORKSPACE }} || terraform workspace new ${{ env.TF_WORKSPACE }}
+          echo "TF_WORKSPACE=$TF_WORKSPACE"
+          terraform workspace show
 
       - name: Fmt & Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
