@@ -15,5 +15,4 @@ ecs_service_security_group_id = "sg-yyyyyyyyyyyyyyyyy"
 # --- Day-6 Image wiring ---
 # Replace these with real values at runtime:
 ecr_repo_uri = "8037XXXXXXXX.dkr.ecr.us-east-2.amazonaws.com/microservice"
-image_digest = "sha256:placeholder"
 

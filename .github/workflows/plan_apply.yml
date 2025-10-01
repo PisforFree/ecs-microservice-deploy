@@ -24,6 +24,7 @@ env:
   TF_WORKING_DIR: infra/terraform
   TF_WORKSPACE:   dev
   TF_VARS:        environments/dev/dev.tfvars
+  TF_VARS_DIGEST: environments/dev/app.auto.tfvars   # <- add this
 
 jobs:
   plan-apply:
@@ -94,7 +95,7 @@ jobs:
 
       - name: Plan (dev)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}" -out=tfplan
+        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}" -var-file="${{ env.TF_VARS_DIGEST }}" -out=tfplan
 
       - name: Upload plan artifact
         if: github.event_name == 'pull_request'
