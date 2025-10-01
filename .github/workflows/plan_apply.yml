@@ -23,8 +23,8 @@ env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: infra/terraform
   TF_WORKSPACE:   dev
-  TF_VARS:        environments/dev/dev.tfvars
-  TF_VARS_DIGEST: environments/dev/app.auto.tfvars   # <- add this
+  TF_VARS:        ../environments/dev/dev.tfvars
+  TF_VARS_DIGEST: ../environments/dev/app.auto.tfvars   # <- add this
 
 jobs:
   plan-apply:
