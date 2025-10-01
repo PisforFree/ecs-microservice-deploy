@@ -28,7 +28,7 @@ resource "aws_ecs_service" "app" {
 
   load_balancer {
     target_group_arn = var.target_group_arn
-    container_name   = local.container_name
+    container_name   = "${var.project_prefix}-${var.env}-app"
     container_port   = 80
   }
 

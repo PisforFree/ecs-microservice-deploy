@@ -49,5 +49,6 @@ module "ecs" {
 
   # ALB target group from the ALB module
   target_group_arn = module.alb.tg_arn
+
 }
 

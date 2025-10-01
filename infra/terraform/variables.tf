@@ -47,3 +47,4 @@ variable "image_digest" {
   description = "Immutable image digest, e.g. sha256:abcd..."
   type        = string
 }
+

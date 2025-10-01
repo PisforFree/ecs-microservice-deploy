@@ -31,3 +31,4 @@ variable "image_digest" {
   description = "Full SHA256 digest string (include sha256: prefix)."
   type        = string
 }
+
