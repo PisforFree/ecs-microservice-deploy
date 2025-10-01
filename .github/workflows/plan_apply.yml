@@ -20,9 +20,11 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION:     ${{ secrets.AWS_REGION }}
+  AWS_REGION:   ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: infra/terraform
-  TF_WORKSPACE:   dev
+  TF_WORKSPACE: dev
+  TF_VARS: environments/dev/dev.tfvars   # <-- add this line
+
 
 jobs:
   plan-apply:
@@ -76,13 +78,9 @@ jobs:
           terraform validate
 
       - name: Plan (dev)
-        id: plan
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform plan \
-            -var-file="../../environments/dev/dev.tfvars" \
-            -var-file="../../environments/dev/app.auto.tfvars" \
-            -out=tfplan
+        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}"
+
 
       - name: Upload plan artifact
         if: github.event_name == 'pull_request'
