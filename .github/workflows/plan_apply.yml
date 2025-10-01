@@ -39,6 +39,8 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           role-session-name: tf-deploy
+          audience: sts.amazonaws.com
+          output-env-credentials: true
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
