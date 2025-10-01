@@ -62,6 +62,22 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -input=false
 
+      - name: Ensure TG is in state (import if missing)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          TG_NAME: micro-dev-tg-80
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -e
+          # If the TG isn't in state, import it by name
+          if ! terraform state show module.alb.aws_lb_target_group.app > /dev/null 2>&1; then
+            TG_ARN=$(aws elbv2 describe-target-groups --region "$AWS_REGION" --names "$TG_NAME" --query "TargetGroups[0].TargetGroupArn" --output text)
+            echo "Importing TG into state: $TG_ARN"
+            terraform import -var-file="${{ env.TF_VARS }}" module.alb.aws_lb_target_group.app "$TG_ARN"
+          else
+            echo "TG already in state; skipping import."
+          fi
+
       - name: Show active workspace (from env)
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
