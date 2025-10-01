@@ -23,8 +23,9 @@ env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: infra/terraform
   TF_WORKSPACE:   dev
-  TF_VARS:        ../environments/dev/dev.tfvars
-  TF_VARS_DIGEST: ../environments/dev/app.auto.tfvars   # <- add this
+  # IMPORTANT: paths below are resolved from TF_WORKING_DIR (infra/terraform)
+  TF_VARS:        environments/dev/dev.tfvars            # inside infra/terraform
+  TF_VARS_DIGEST: ../environments/dev/app.auto.tfvars    # repo root -> environments/dev
 
 jobs:
   plan-apply:
@@ -39,10 +40,9 @@ jobs:
           if [ -z "${{ secrets.AWS_TF_DEPLOY_ROLE }}" ]; then
             echo "ERROR: AWS_TF_DEPLOY_ROLE secret is empty or undefined."; exit 1
           fi
-          ARN='${{ secrets.AWS_TF_DEPLOY_ROLE }}'
-          case "$ARN" in
+          case "${{ secrets.AWS_TF_DEPLOY_ROLE }}" in
             arn:aws:iam::*:role/*) echo "Role ARN format looks OK." ;;
-            *) echo "ERROR: AWS_TF_DEPLOY_ROLE is not a valid IAM role ARN: $ARN"; exit 1 ;;
+            *) echo "ERROR: AWS_TF_DEPLOY_ROLE is not a valid IAM role ARN"; exit 1 ;;
           esac
 
       - name: Configure AWS (OIDC)
@@ -66,28 +66,18 @@ jobs:
       - name: Verify var files exist
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "PWD: $(pwd)"
-          ls -la
-          ls -la environments/dev || true
-          ls -la ../environments/dev || true
-          test -f "${{ env.TF_VARS }}" && echo "OK: ${{ env.TF_VARS }}" || { echo "MISSING: ${{ env.TF_VARS }}"; exit 1; }
-          test -f "${{ env.TF_VARS_DIGEST }}" && echo "OK: ${{ env.TF_VARS_DIGEST }}" || { echo "MISSING: ${{ env.TF_VARS_DIGEST }}"; exit 1; }
-
-      - name: Ensure TG is in state (import if missing)
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        env:
-          TG_NAME: micro-dev-tg-80
-          AWS_REGION: ${{ env.AWS_REGION }}
-        run: |
           set -e
-          # If the TG isn't in state, import it by name
-          if ! terraform state show module.alb.aws_lb_target_group.app > /dev/null 2>&1; then
-            TG_ARN=$(aws elbv2 describe-target-groups --region "$AWS_REGION" --names "$TG_NAME" --query "TargetGroups[0].TargetGroupArn" --output text)
-            echo "Importing TG into state: $TG_ARN"
-            terraform import -var-file="${{ env.TF_VARS }}" module.alb.aws_lb_target_group.app "$TG_ARN"
-          else
-            echo "TG already in state; skipping import."
-          fi
+          echo "PWD: $(pwd)"
+          echo "Listing here:"; ls -la
+          echo "Listing environments/dev under working dir:"; ls -la environments/dev || true
+          echo "Listing ../environments/dev from working dir:"; ls -la ../environments/dev || true
+
+          if [ ! -f "${{ env.TF_VARS }}" ]; then
+            echo "MISSING: ${{ env.TF_VARS }}"; exit 1; fi
+          if [ ! -f "${{ env.TF_VARS_DIGEST }}" ]; then
+            echo "MISSING: ${{ env.TF_VARS_DIGEST }}"; exit 1; fi
+
+          echo "OK: found ${{ env.TF_VARS }} and ${{ env.TF_VARS_DIGEST }}"
 
       - name: Show active workspace (from env)
         working-directory: ${{ env.TF_WORKING_DIR }}
