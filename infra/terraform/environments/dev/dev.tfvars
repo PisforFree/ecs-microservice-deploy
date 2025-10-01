@@ -1,8 +1,18 @@
+# environments/dev/dev.tfvars
+
 region         = "us-east-2"
 project_prefix = "micro"
 env            = "dev"
 
-alb_subnet_ids         = ["subnet-03c932e9f9306e3a4", "subnet-048636854206d63b92"]
-alb_security_group_ids = ["sg-0453aac7914b0d2e3"]
+# --- Existing VPC + Subnets + SGs ---
+vpc_id                 = "vpc-xxxxxxxxxxxxxxxxx"
+alb_subnet_ids         = ["subnet-aaaaaaaaaaaaaaa", "subnet-bbbbbbbbbbbbb"]
+alb_security_group_ids = ["sg-xxxxxxxxxxxxxxxxx"]
 
-vpc_id = "vpc-06ea32c95833148f2"
+ecs_private_subnet_ids        = ["subnet-ccccccccccccccc", "subnet-ddddddddddddd"]
+ecs_service_security_group_id = "sg-yyyyyyyyyyyyyyyyy"
+
+# --- Day-6 Image wiring ---
+# Replace these with real values at runtime:
+ecr_repo_uri = "8037XXXXXXXX.dkr.ecr.us-east-2.amazonaws.com/microservice"
+image_digest = "sha256:placeholder"
