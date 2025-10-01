@@ -17,12 +17,13 @@ resource "aws_ecs_task_definition" "app" {
     cpu_architecture        = "X86_64"
   }
 
-  # Use custom Apache image pinned by digest (immutable)
+  # Pin image immutably by digest (repo@sha256:...)
   container_definitions = jsonencode([
     {
       name      = local.container_name
-      image     = "803767876973.dkr.ecr.us-east-2.amazonaws.com/microservice@sha256:7b6b61c2064daeb6c3327ad5b6715be02f4948ad9483748a4509589c3d1cf62f"
+      image     = "${var.ecr_repo_uri}@${var.image_digest}"
       essential = true
+
       portMappings = [
         {
           containerPort = local.app_port
@@ -30,6 +31,8 @@ resource "aws_ecs_task_definition" "app" {
           protocol      = "tcp"
         }
       ]
+
+      # CloudWatch Logs
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -38,6 +41,14 @@ resource "aws_ecs_task_definition" "app" {
           awslogs-stream-prefix = "ecs"
         }
       }
+
+      # Simple container health check for Apache baseline
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -fsS http://localhost/ || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
 
       # 🔴 TEMPORARY failing health check to trigger ECS rollback
       healthCheck = {
