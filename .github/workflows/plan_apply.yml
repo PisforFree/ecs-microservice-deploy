@@ -20,11 +20,10 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION:   ${{ secrets.AWS_REGION }}
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: infra/terraform
-  TF_WORKSPACE: dev
-  TF_VARS: environments/dev/dev.tfvars   # <-- add this line
-
+  TF_WORKSPACE:   dev
+  TF_VARS:        environments/dev/dev.tfvars
 
 jobs:
   plan-apply:
@@ -34,7 +33,6 @@ jobs:
       - name: Checkout (deploy repo)
         uses: actions/checkout@v4
 
-      # Preflight: validate the role ARN secret format before trying OIDC
       - name: Validate AWS_TF_DEPLOY_ROLE secret format
         run: |
           if [ -z "${{ secrets.AWS_TF_DEPLOY_ROLE }}" ]; then
@@ -42,11 +40,10 @@ jobs:
           fi
           ARN='${{ secrets.AWS_TF_DEPLOY_ROLE }}'
           case "$ARN" in
-            arn:aws:iam::*:role/*) echo "Role ARN format looks OK."; ;;
+            arn:aws:iam::*:role/*) echo "Role ARN format looks OK." ;;
             *) echo "ERROR: AWS_TF_DEPLOY_ROLE is not a valid IAM role ARN: $ARN"; exit 1 ;;
           esac
 
-      # Assume role via OIDC (directly from secret)
       - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -58,6 +55,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.13.3'
 
       - name: Init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -79,8 +78,7 @@ jobs:
 
       - name: Plan (dev)
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}"
-
+        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}" -out=tfplan
 
       - name: Upload plan artifact
         if: github.event_name == 'pull_request'
@@ -90,7 +88,6 @@ jobs:
           path: ${{ env.TF_WORKING_DIR }}/tfplan
 
       - name: Apply (dev)
-        if: github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve tfplan
-
