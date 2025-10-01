@@ -32,12 +32,24 @@ jobs:
       - name: Checkout (deploy repo)
         uses: actions/checkout@v4
 
+      # Preflight: validate the role ARN secret format before trying OIDC
+      - name: Validate AWS_TF_DEPLOY_ROLE secret format
+        run: |
+          if [ -z "${{ secrets.AWS_TF_DEPLOY_ROLE }}" ]; then
+            echo "ERROR: AWS_TF_DEPLOY_ROLE secret is empty or undefined."; exit 1
+          fi
+          ARN='${{ secrets.AWS_TF_DEPLOY_ROLE }}'
+          case "$ARN" in
+            arn:aws:iam::*:role/*) echo "Role ARN format looks OK."; ;;
+            *) echo "ERROR: AWS_TF_DEPLOY_ROLE is not a valid IAM role ARN: $ARN"; exit 1 ;;
+          esac
+
       # Assume role via OIDC (directly from secret)
       - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_TF_DEPLOY_ROLE }}   # e.g. arn:aws:iam::<acct>:role/GitHubTerraformDeployRole
+          role-to-assume: ${{ secrets.AWS_TF_DEPLOY_ROLE }}
           role-session-name: tf-deploy
           audience: sts.amazonaws.com
           output-env-credentials: true
@@ -69,7 +81,6 @@ jobs:
             -var-file="../../environments/dev/app.auto.tfvars" \
             -out=tfplan
 
-      # Upload plan on PRs for review
       - name: Upload plan artifact
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
@@ -77,7 +88,6 @@ jobs:
           name: tfplan
           path: ${{ env.TF_WORKING_DIR }}/tfplan
 
-      # Apply only on push to main
       - name: Apply (dev)
         if: github.event_name == 'push'
         working-directory: ${{ env.TF_WORKING_DIR }}
