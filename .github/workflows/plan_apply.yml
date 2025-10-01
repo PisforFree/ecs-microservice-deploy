@@ -20,10 +20,9 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION:         ${{ secrets.AWS_REGION }}
-  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_TF_DEPLOY_ROLE }}   # e.g. arn:aws:iam::<acct>:role/GitHubTerraformDeployRole
-  TF_WORKING_DIR:     infra/terraform
-  TF_WORKSPACE:       dev
+  AWS_REGION:     ${{ secrets.AWS_REGION }}
+  TF_WORKING_DIR: infra/terraform
+  TF_WORKSPACE:   dev
 
 jobs:
   plan-apply:
@@ -33,11 +32,12 @@ jobs:
       - name: Checkout (deploy repo)
         uses: actions/checkout@v4
 
+      # Assume role via OIDC (directly from secret)
       - name: Configure AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.AWS_TF_DEPLOY_ROLE }}   # e.g. arn:aws:iam::<acct>:role/GitHubTerraformDeployRole
           role-session-name: tf-deploy
           audience: sts.amazonaws.com
           output-env-credentials: true
