@@ -23,6 +23,10 @@ env:
   AWS_REGION:     ${{ secrets.AWS_REGION }}
   TF_WORKING_DIR: infra/terraform
   TF_WORKSPACE:   dev
+  AWS_REGION:         ${{ secrets.AWS_REGION }}
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_TF_DEPLOY_ROLE }}   # e.g. arn:aws:iam::<acct>:role/GitHubTerraformDeployRole
+  TF_WORKING_DIR:     infra/terraform
+  TF_WORKSPACE:       dev
 
 jobs:
   plan-apply:
@@ -41,6 +45,8 @@ jobs:
           role-session-name: tf-deploy
           audience: sts.amazonaws.com
           output-env-credentials: true
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          role-session-name: tf-deploy
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

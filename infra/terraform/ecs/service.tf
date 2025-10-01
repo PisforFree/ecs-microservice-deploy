@@ -9,6 +9,8 @@ resource "aws_ecs_service" "app" {
   deployment_circuit_breaker {
     enable   = true # turn on circuit breaker
     rollback = true # auto-rollback to last RUNNING task set if deployment fails
+    enable   = true   # turn on circuit breaker
+    rollback = true   # auto-rollback to last RUNNING task set if deployment fails
   }
 
   # (Optional) tweak rollout speed; not required for circuit breaker
