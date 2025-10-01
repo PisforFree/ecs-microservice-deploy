@@ -63,6 +63,16 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init -input=false
 
+      - name: Verify var files exist
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "PWD: $(pwd)"
+          ls -la
+          ls -la environments/dev || true
+          ls -la ../environments/dev || true
+          test -f "${{ env.TF_VARS }}" && echo "OK: ${{ env.TF_VARS }}" || { echo "MISSING: ${{ env.TF_VARS }}"; exit 1; }
+          test -f "${{ env.TF_VARS_DIGEST }}" && echo "OK: ${{ env.TF_VARS_DIGEST }}" || { echo "MISSING: ${{ env.TF_VARS_DIGEST }}"; exit 1; }
+
       - name: Ensure TG is in state (import if missing)
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
