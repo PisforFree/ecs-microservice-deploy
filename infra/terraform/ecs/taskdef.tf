@@ -49,6 +49,7 @@ resource "aws_ecs_task_definition" "app" {
         timeout     = 5
         retries     = 3
         startPeriod = 10
+        
 
       # 🔴 TEMPORARY failing health check to trigger ECS rollback
       healthCheck = {
