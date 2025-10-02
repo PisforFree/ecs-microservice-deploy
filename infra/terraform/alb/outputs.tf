@@ -4,7 +4,7 @@ output "alb_arn" {
 }
 
 output "alb_dns_name" {
-  value       = aws_lb.this.dns_name
+  value       = data.aws_lb.this.dns_name
   description = "ALB DNS name"
 }
 
@@ -14,7 +14,7 @@ output "listener_arn" {
 }
 
 output "tg_arn" {
-  value       = aws_lb_target_group.app.arn
+  value       = data.aws_lb_target_group.app.arn
   description = "Target group ARN"
 }
 

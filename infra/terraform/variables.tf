@@ -49,6 +49,18 @@ variable "image_digest" {
 }
 
 # variables.tf
-variable "alb_name"       { type = string }
-variable "tg_name"        { type = string }
-variable "listener_port"  { type = number  default = 80 }
+variable "alb_name" {
+  type        = string
+  description = "Pre-existing ALB name"
+}
+
+variable "tg_name" {
+  type        = string
+  description = "Pre-existing Target Group name"
+}
+
+variable "listener_port" {
+  type        = number
+  description = "Listener port to read (typically 80)"
+  default     = 80
+}

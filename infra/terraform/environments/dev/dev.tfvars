@@ -16,6 +16,6 @@ ecs_service_security_group_id = "sg-yyyyyyyyyyyyyyyyy"
 # Replace these with real values at runtime:
 ecr_repo_uri = "8037XXXXXXXX.dkr.ecr.us-east-2.amazonaws.com/microservice"
 
-alb_name       = "micro-dev-alb"    # <-- your existing ALB name
-tg_name        = "micro-dev-tg-80"  # <-- your existing TG name
-listener_port  = 80
+alb_name      = "micro-dev-alb"   # <-- your existing ALB name
+tg_name       = "micro-dev-tg-80" # <-- your existing TG name
+listener_port = 80
