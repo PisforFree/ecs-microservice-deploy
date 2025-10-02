@@ -26,6 +26,9 @@ module "alb" {
   vpc_id                 = var.vpc_id
   alb_subnet_ids         = var.alb_subnet_ids
   alb_security_group_ids = var.alb_security_group_ids
+  alb_name               = var.alb_name
+  tg_name                = var.tg_name
+  listener_port          = var.listener_port
 
   app_port          = 80
   health_check_path = "/"

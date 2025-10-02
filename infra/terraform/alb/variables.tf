@@ -34,3 +34,18 @@ variable "health_check_path" {
   default     = "/"
 }
 
+variable "alb_name" {
+  description = "Pre-existing ALB name"
+  type        = string
+}
+
+variable "tg_name" {
+  description = "Pre-existing Target Group name"
+  type        = string
+}
+
+variable "listener_port" {
+  description = "Listener port to read (typically 80)"
+  type        = number
+  default     = 80
+}

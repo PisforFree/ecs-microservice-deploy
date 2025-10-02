@@ -48,3 +48,7 @@ variable "image_digest" {
   type        = string
 }
 
+# variables.tf
+variable "alb_name"       { type = string }
+variable "tg_name"        { type = string }
+variable "listener_port"  { type = number  default = 80 }

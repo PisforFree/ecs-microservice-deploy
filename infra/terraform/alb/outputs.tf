@@ -1,5 +1,5 @@
 output "alb_arn" {
-  value       = aws_lb.this.arn
+  value       = data.aws_lb.this.arn
   description = "ALB ARN"
 }
 
@@ -9,11 +9,16 @@ output "alb_dns_name" {
 }
 
 output "listener_arn" {
-  value       = aws_lb_listener.http.arn
+  value       = data.aws_lb_listener.http.arn
   description = "HTTP listener ARN"
 }
 
 output "tg_arn" {
   value       = aws_lb_target_group.app.arn
   description = "Target group ARN"
+}
+
+output "target_group_arn" {
+  value       = data.aws_lb_target_group.app.arn
+  description = "Existing Target Group ARN"
 }
