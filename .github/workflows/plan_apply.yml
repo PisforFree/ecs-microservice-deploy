@@ -1,110 +1,121 @@
-name: Deploy — Terraform plan & apply
+name: Deploy - Terraform Plan & Apply
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "infra/terraform/**"
-      - "environments/**"
-      - ".github/workflows/plan_apply.yml"
   pull_request:
     branches: [main]
     paths:
       - "infra/terraform/**"
-      - "environments/**"
+      - ".github/workflows/plan_apply.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/terraform/**"
       - ".github/workflows/plan_apply.yml"
   workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+  TF_WORKDIR: infra/terraform
+  TFVARS_DEV: environments/dev/dev.tfvars
+  TFVARS_APP: ../environments/dev/app.auto.tfvars
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION:     ${{ secrets.AWS_REGION }}
-  TF_WORKING_DIR: infra/terraform
-  TF_WORKSPACE:   dev
-  # IMPORTANT: paths below are resolved from TF_WORKING_DIR (infra/terraform)
-  TF_VARS:        environments/dev/dev.tfvars            # inside infra/terraform
-  TF_VARS_DIGEST: ../environments/dev/app.auto.tfvars    # repo root -> environments/dev
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  plan-apply:
+  terraform:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (deploy repo)
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Validate AWS_TF_DEPLOY_ROLE secret format
+      - name: Show repo tree (top level)
         run: |
-          if [ -z "${{ secrets.AWS_TF_DEPLOY_ROLE }}" ]; then
-            echo "ERROR: AWS_TF_DEPLOY_ROLE secret is empty or undefined."; exit 1
-          fi
-          case "${{ secrets.AWS_TF_DEPLOY_ROLE }}" in
-            arn:aws:iam::*:role/*) echo "Role ARN format looks OK." ;;
-            *) echo "ERROR: AWS_TF_DEPLOY_ROLE is not a valid IAM role ARN"; exit 1 ;;
-          esac
+          pwd
+          ls -la
+          echo "---"
+          tree -a -I ".git"
 
-      - name: Configure AWS (OIDC)
+      - name: Show terraform dir tree
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: |
+          pwd
+          ls -la
+          echo "---"
+          tree -a -I ".git"
+
+      - name: Verify var files exist (absolute + relative)
+        working-directory: ${{ env.TF_WORKDIR }}
+        shell: bash
+        run: |
+          echo "Expecting:"
+          echo " - ${TFVARS_DEV}"
+          echo " - ${TFVARS_APP}"
+          echo "--- absolute paths:"
+          realpath "${TFVARS_DEV}" || true
+          realpath "${TFVARS_APP}" || true
+          echo "--- test -f:"
+          if [ ! -f "${TFVARS_DEV}" ]; then
+            echo "::error file=${TFVARS_DEV}::Missing dev.tfvars at ${TF_WORKDIR}/${TFVARS_DEV}"
+            exit 1
+          fi
+          if [ ! -f "${TFVARS_APP}" ]; then
+            echo "::error file=${TFVARS_APP}::Missing app.auto.tfvars at ${TF_WORKDIR}/${TFVARS_APP}"
+            echo "Hint: it should live at repo-root/environments/dev/app.auto.tfvars"
+            exit 1
+          fi
+          echo "Both var files found."
+
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_TF_DEPLOY_ROLE }}
-          role-session-name: tf-deploy
-          audience: sts.amazonaws.com
-          output-env-credentials: true
 
-      - name: Setup Terraform
+      - name: Setup Terraform 1.13.3
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: '1.13.3'
+          terraform_version: 1.13.3
 
-      - name: Init
-        working-directory: ${{ env.TF_WORKING_DIR }}
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKDIR }}
         run: terraform init -input=false
 
-      - name: Verify var files exist
-        working-directory: ${{ env.TF_WORKING_DIR }}
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: terraform validate
+
+      - name: Terraform Plan (PR)
+        if: github.event_name == 'pull_request'
+        working-directory: ${{ env.TF_WORKDIR }}
         run: |
-          set -e
-          echo "PWD: $(pwd)"
-          echo "Listing here:"; ls -la
-          echo "Listing environments/dev under working dir:"; ls -la environments/dev || true
-          echo "Listing ../environments/dev from working dir:"; ls -la ../environments/dev || true
+          terraform plan \
+            -input=false \
+            -out=tfplan.bin \
+            -var-file="${{ env.TFVARS_DEV }}" \
+            -var-file="${{ env.TFVARS_APP }}"
 
-          if [ ! -f "${{ env.TF_VARS }}" ]; then
-            echo "MISSING: ${{ env.TF_VARS }}"; exit 1; fi
-          if [ ! -f "${{ env.TF_VARS_DIGEST }}" ]; then
-            echo "MISSING: ${{ env.TF_VARS_DIGEST }}"; exit 1; fi
-
-          echo "OK: found ${{ env.TF_VARS }} and ${{ env.TF_VARS_DIGEST }}"
-
-      - name: Show active workspace (from env)
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        env:
-          TF_WORKSPACE: ${{ env.TF_WORKSPACE }}
-        run: |
-          echo "TF_WORKSPACE=$TF_WORKSPACE"
-          terraform workspace show
-
-      - name: Fmt & Validate
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform fmt -recursive
-          terraform validate
-
-      - name: Plan (dev)
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -input=false -var-file="${{ env.TF_VARS }}" -var-file="${{ env.TF_VARS_DIGEST }}" -out=tfplan
-
-      - name: Upload plan artifact
+      - name: Upload Plan
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
-          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          path: infra/terraform/tfplan.bin
 
-      - name: Apply (dev)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve tfplan
+      - name: Terraform Apply (push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: |
+          terraform plan \
+            -input=false \
+            -out=tfplan.bin \
+            -var-file="${{ env.TFVARS_DEV }}" \
+            -var-file="${{ env.TFVARS_APP }}"
+          terraform apply -input=false -auto-approve tfplan.bin
