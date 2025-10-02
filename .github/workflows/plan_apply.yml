@@ -17,6 +17,9 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
   TF_WORKDIR: infra/terraform
+  # Your layout:
+  # 1) infra/terraform/environments/dev/dev.tfvars
+  # 2) (repo root)/environments/dev/app.auto.tfvars
   TFVARS_DEV: environments/dev/dev.tfvars
   TFVARS_APP: ../environments/dev/app.auto.tfvars
 
@@ -31,25 +34,39 @@ concurrency:
 jobs:
   terraform:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Show repo tree (top level)
+      - name: Show repo root contents
         run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           pwd
           ls -la
-          echo "---"
-          tree -a -I ".git"
+          echo "Top-level directories:"
+          find . -maxdepth 2 -type d -print | sort
 
-      - name: Show terraform dir tree
+      - name: Show terraform dir contents
         working-directory: ${{ env.TF_WORKDIR }}
         run: |
           pwd
           ls -la
-          echo "---"
-          tree -a -I ".git"
+          echo "Terraform subdirs:"
+          find . -maxdepth 3 -type d -print | sort
+
+      - name: Inspect root environments/dev (should contain app.auto.tfvars)
+        run: |
+          echo "Listing repo-root/environments/dev:"
+          ls -la environments/dev || echo "repo-root/environments/dev NOT found."
+
+      - name: Search for any app.auto.tfvars in the repo
+        run: |
+          echo "Searching for app.auto.tfvars anywhere under repo root..."
+          FOUND=$(find . -type f -name "app.auto.tfvars" -print | sort || true)
+          echo "$FOUND"
+          if [ -z "$FOUND" ]; then
+            echo "::error::No app.auto.tfvars found anywhere in the repository checkout."
+          fi
 
       - name: Verify var files exist (absolute + relative)
         working-directory: ${{ env.TF_WORKDIR }}
@@ -68,7 +85,7 @@ jobs:
           fi
           if [ ! -f "${TFVARS_APP}" ]; then
             echo "::error file=${TFVARS_APP}::Missing app.auto.tfvars at ${TF_WORKDIR}/${TFVARS_APP}"
-            echo "Hint: it should live at repo-root/environments/dev/app.auto.tfvars"
+            echo "Hint: it must be committed at repo-root/environments/dev/app.auto.tfvars on this branch."
             exit 1
           fi
           echo "Both var files found."
