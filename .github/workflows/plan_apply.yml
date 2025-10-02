@@ -6,22 +6,19 @@ on:
     paths:
       - "infra/terraform/**"
       - ".github/workflows/plan_apply.yml"
+      - "environments/dev/app.auto.tfvars"
   push:
     branches: [main]
     paths:
       - "infra/terraform/**"
       - ".github/workflows/plan_apply.yml"
+      - "environments/dev/app.auto.tfvars"
   workflow_dispatch:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
   TF_WORKDIR: infra/terraform
-  # Your layout:
-  # 1) infra/terraform/environments/dev/dev.tfvars
-  # 2) (repo root)/environments/dev/app.auto.tfvars
-  TFVARS_DEV: environments/dev/dev.tfvars
-  TFVARS_APP: ../environments/dev/app.auto.tfvars
 
 permissions:
   id-token: write
@@ -34,61 +31,54 @@ concurrency:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # ensure full tree for path checks
 
-      - name: Show repo root contents
+      - name: Show repo root contents (quick map)
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
           pwd
           ls -la
-          echo "Top-level directories:"
+          echo "Top-level dirs:"
           find . -maxdepth 2 -type d -print | sort
 
-      - name: Show terraform dir contents
-        working-directory: ${{ env.TF_WORKDIR }}
-        run: |
-          pwd
-          ls -la
-          echo "Terraform subdirs:"
-          find . -maxdepth 3 -type d -print | sort
-
-      - name: Inspect root environments/dev (should contain app.auto.tfvars)
-        run: |
-          echo "Listing repo-root/environments/dev:"
-          ls -la environments/dev || echo "repo-root/environments/dev NOT found."
-
-      - name: Search for any app.auto.tfvars in the repo
-        run: |
-          echo "Searching for app.auto.tfvars anywhere under repo root..."
-          FOUND=$(find . -type f -name "app.auto.tfvars" -print | sort || true)
-          echo "$FOUND"
-          if [ -z "$FOUND" ]; then
-            echo "::error::No app.auto.tfvars found anywhere in the repository checkout."
-          fi
-
-      - name: Verify var files exist (absolute + relative)
-        working-directory: ${{ env.TF_WORKDIR }}
+      - name: Prove varfiles exist at exact locations (from repo root)
         shell: bash
         run: |
-          echo "Expecting:"
-          echo " - ${TFVARS_DEV}"
-          echo " - ${TFVARS_APP}"
-          echo "--- absolute paths:"
-          realpath "${TFVARS_DEV}" || true
-          realpath "${TFVARS_APP}" || true
-          echo "--- test -f:"
-          if [ ! -f "${TFVARS_DEV}" ]; then
-            echo "::error file=${TFVARS_DEV}::Missing dev.tfvars at ${TF_WORKDIR}/${TFVARS_DEV}"
+          set -e
+          echo "Expecting these files in THIS commit:"
+          echo "  1) $GITHUB_WORKSPACE/infra/terraform/environments/dev/dev.tfvars"
+          echo "  2) $GITHUB_WORKSPACE/environments/dev/app.auto.tfvars"
+          echo
+
+          # hard checks from repo root (absolute paths)
+          if [ ! -f "$GITHUB_WORKSPACE/infra/terraform/environments/dev/dev.tfvars" ]; then
+            echo "::error::Missing dev.tfvars at infra/terraform/environments/dev/dev.tfvars"
             exit 1
           fi
-          if [ ! -f "${TFVARS_APP}" ]; then
-            echo "::error file=${TFVARS_APP}::Missing app.auto.tfvars at ${TF_WORKDIR}/${TFVARS_APP}"
-            echo "Hint: it must be committed at repo-root/environments/dev/app.auto.tfvars on this branch."
+
+          if [ ! -f "$GITHUB_WORKSPACE/environments/dev/app.auto.tfvars" ]; then
+            echo "::error::Missing app.auto.tfvars at environments/dev/app.auto.tfvars"
+            echo "Tip: open this PR branch on GitHub and verify the file exists in that path."
             exit 1
           fi
-          echo "Both var files found."
+
+          # Export absolute paths for later steps
+          echo "TFVARS_DEV_ABS=$GITHUB_WORKSPACE/infra/terraform/environments/dev/dev.tfvars" >> $GITHUB_ENV
+          echo "TFVARS_APP_ABS=$GITHUB_WORKSPACE/environments/dev/app.auto.tfvars" >> $GITHUB_ENV
+
+          echo "Both varfiles are present."
+
+      - name: Print absolute varfile paths
+        run: |
+          echo "TFVARS_DEV_ABS=${TFVARS_DEV_ABS}"
+          echo "TFVARS_APP_ABS=${TFVARS_APP_ABS}"
+          ls -la "${TFVARS_DEV_ABS}"
+          ls -la "${TFVARS_APP_ABS}"
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -116,8 +106,8 @@ jobs:
           terraform plan \
             -input=false \
             -out=tfplan.bin \
-            -var-file="${{ env.TFVARS_DEV }}" \
-            -var-file="${{ env.TFVARS_APP }}"
+            -var-file="${TFVARS_DEV_ABS}" \
+            -var-file="${TFVARS_APP_ABS}"
 
       - name: Upload Plan
         if: github.event_name == 'pull_request'
@@ -133,6 +123,6 @@ jobs:
           terraform plan \
             -input=false \
             -out=tfplan.bin \
-            -var-file="${{ env.TFVARS_DEV }}" \
-            -var-file="${{ env.TFVARS_APP }}"
+            -var-file="${TFVARS_DEV_ABS}" \
+            -var-file="${TFVARS_APP_ABS}"
           terraform apply -input=false -auto-approve tfplan.bin
