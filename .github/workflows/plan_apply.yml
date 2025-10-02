@@ -95,6 +95,13 @@ jobs:
         working-directory: ${{ env.TF_WORKDIR }}
         run: terraform init -input=false
 
+      - name: Terraform Workspace (dev)
+        working-directory: ${{ env.TF_WORKDIR }}
+        run: |
+          terraform workspace list || true
+          terraform workspace select dev || terraform workspace new dev
+
+
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKDIR }}
         run: terraform validate
