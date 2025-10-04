@@ -123,13 +123,15 @@ jobs:
           name: tfplan
           path: infra/terraform/tfplan.bin
 
-      - name: Terraform Apply (push to main)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      # Change only the Apply step's if:
+      - name: Terraform Apply (push to main or manual)
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         working-directory: ${{ env.TF_WORKDIR }}
         run: |
           terraform plan \
-            -input=false \
-            -out=tfplan.bin \
-            -var-file="${TFVARS_DEV_ABS}" \
-            -var-file="${TFVARS_APP_ABS}"
+          -input=false \
+          -out=tfplan.bin \
+          -var-file="${TFVARS_DEV_ABS}" \
+          -var-file="${TFVARS_APP_ABS}"
           terraform apply -input=false -auto-approve tfplan.bin
+
