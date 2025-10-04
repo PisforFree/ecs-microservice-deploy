@@ -34,3 +34,16 @@ variable "app_port" {
   type    = number
   default = 3000
 }
+
+# When reusing existing networking
+variable "existing_private_route_table_id" {
+  description = "Existing private RTB ID to add default NAT route to (e.g., rtb-0cfd187c223fc7632)"
+  type        = string
+  default     = ""
+}
+
+variable "existing_nat_gateway_id" {
+  description = "Existing NAT GW ID to route 0.0.0.0/0 to (e.g., nat-06063c10377fba6a0)"
+  type        = string
+  default     = ""
+}

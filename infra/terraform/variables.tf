@@ -64,3 +64,47 @@ variable "listener_port" {
   description = "Listener port to read (typically 80)"
   default     = 80
 }
+
+variable "create_network_primitives" {
+  description = "Create IGW/NAT/RTs in this module (false when reusing existing VPC networking)"
+  type        = bool
+  default     = false
+}
+
+variable "existing_private_route_table_id" {
+  description = "Existing private RTB to add 0.0.0.0/0 NAT route to"
+  type        = string
+}
+
+variable "existing_nat_gateway_id" {
+  description = "Existing NAT Gateway ID used for private egress"
+  type        = string
+}
+
+variable "ecs_cluster_name" {
+  description = "Override ECS cluster name if it doesn't follow the default pattern"
+  type        = string
+  default     = null
+}
+
+variable "ecs_service_name" {
+  description = "Override ECS service name if it doesn't follow the default pattern"
+  type        = string
+  default     = null
+}
+
+variable "alb_arn_suffix" {
+  description = "ALB arn_suffix like app/micro-dev-alb/xxxxxxxx"
+  type        = string
+}
+
+variable "target_group_arn_suffix" {
+  description = "Target Group arn_suffix like targetgroup/micro-dev-tg-80/yyyyyyyy"
+  type        = string
+}
+
+variable "sns_topic_arn" {
+  description = "SNS topic ARN to notify from CloudWatch alarms"
+  type        = string
+}
+
