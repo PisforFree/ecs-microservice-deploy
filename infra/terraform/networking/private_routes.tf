@@ -15,3 +15,4 @@ resource "aws_route_table_association" "priv2" {
   subnet_id      = "subnet-0cb937fb5a2ff2457"
   route_table_id = "rtb-0cfd187c223fc7632"
 }
+

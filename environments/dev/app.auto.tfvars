@@ -1,2 +1,2 @@
 # environments/dev/app.auto.tfvars  (auto-loaded)
-image_digest  = "sha256:c56728b0cf8efc961fd6d3abf1db620822bbb7c4faa962f2be54d867e4f69775"
+image_digest = "sha256:eb55bf3d876f93a4873fd7280d9878e7131163c9c206c5e9317585b5e365d6a0"
