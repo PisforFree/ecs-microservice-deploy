@@ -1,8 +1,10 @@
 
 # ECS task/app log groups
+
 resource "aws_cloudwatch_log_group" "ecs_service" {
   name              = "/ecs/micro-dev"
   retention_in_days = 14
+
   tags = {
     project = var.project_prefix
     env     = var.env
@@ -10,10 +12,11 @@ resource "aws_cloudwatch_log_group" "ecs_service" {
   }
 }
 
-# Optional: per-container log group (keep if your task uses a second name)
+# Optional: keep only if your task uses a second group
 resource "aws_cloudwatch_log_group" "ecs_app" {
   name              = "/ecs/micro-dev-app"
   retention_in_days = 14
+
   tags = {
     project = var.project_prefix
     env     = var.env
