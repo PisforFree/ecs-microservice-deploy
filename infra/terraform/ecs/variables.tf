@@ -11,15 +11,18 @@ variable "region" {
 }
 
 variable "private_subnet_ids" {
-  type = list(string)
+  description = "Private subnet IDs for ECS tasks"
+  type        = list(string)
 }
 
 variable "ecs_service_security_group_id" {
-  type = string
+  description = "Security Group ID for the ECS service/tasks (allows inbound from ALB SG on 80)"
+  type        = string
 }
 
 variable "target_group_arn" {
-  type = string
+  description = "ALB Target Group ARN for the service"
+  type        = string
 }
 
 variable "ecr_repo_uri" {
@@ -32,3 +35,13 @@ variable "image_digest" {
   type        = string
 }
 
+variable "log_group_name" {
+  description = "CloudWatch Logs group name for the app container"
+  type        = string
+}
+
+variable "log_stream_prefix" {
+  description = "CloudWatch Logs stream prefix"
+  type        = string
+  default     = "micro-dev-app"
+}

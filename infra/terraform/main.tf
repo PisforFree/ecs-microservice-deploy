@@ -53,5 +53,25 @@ module "ecs" {
   # ALB target group from the ALB module
   target_group_arn = module.alb.tg_arn
 
+  log_group_name    = aws_cloudwatch_log_group.ecs_service.name
+  log_stream_prefix = "micro-dev-app"
+
 }
 
+module "observability" {
+  source = "./observability"
+
+  # pass through shared context
+  project_prefix = var.project_prefix
+  env            = var.env
+
+  # ALB / TG
+  alb_arn_suffix          = var.alb_arn_suffix
+  target_group_arn_suffix = var.target_group_arn_suffix
+
+  # ECS service identifiers
+  ecs_cluster_name = var.ecs_cluster_name
+  ecs_service_name = var.ecs_service_name
+
+  sns_topic_arn = var.sns_topic_arn
+}
