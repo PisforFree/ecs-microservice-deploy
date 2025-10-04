@@ -49,3 +49,10 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
   subnet_id      = each.value.id
 }
+
+# Ensure existing private RTB points 0.0.0.0/0 to the existing NAT
+resource "aws_route" "existing_private_default_to_nat" {
+  route_table_id         = var.existing_private_route_table_id # rtb-0cfd187c223fc7632
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = var.existing_nat_gateway_id # nat-06063c10377fba6a0
+}
