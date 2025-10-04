@@ -26,9 +26,11 @@ resource "aws_ecs_task_definition" "app" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group         = "/ecs/${var.project_prefix}-${var.env}"
+          awslogs-group         = aws_cloudwatch_log_group.ecs_service.name
           awslogs-region        = var.region
-          awslogs-stream-prefix = "ecs"
+          awslogs-stream-prefix = "micro-dev-app"
+          mode                  = "non-blocking"
+          max-buffer-size       = "25m"
         }
       }
     }
