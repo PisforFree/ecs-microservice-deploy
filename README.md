@@ -1,254 +1,148 @@
-# ecs-microservice-deploy
+# 🚀 ECS Fargate Microservices Deployment (GitOps + Observability)
 
-# Project README (Deploy Repo)
+## 📘 Overview
+This project demonstrates an **enterprise-style CI/CD pipeline** and infrastructure deployment for a containerized microservice on **AWS ECS Fargate**, built entirely with **Terraform** and automated through **GitHub Actions** using **OIDC authentication** (no static AWS keys).  
+It follows GitOps best practices with separate repositories for application and infrastructure code, enforcing security, automation, and reproducibility.
 
-> **Scope:** ECS Fargate microservice with ALB, GitHub Actions (OIDC), Terraform IaC, autoscaling, and CloudWatch/SNS alerting.
-
-## 1) Overview
-
-* **Objective:** Deploy a containerized microservice on AWS ECS Fargate using Terraform and GitHub Actions, with GitOps approvals.
-* **Outcome (Day-1 → Day-8):** VPC + subnets + NAT, ALB + target group, ECS cluster/service, CI pipelines (app build → ECR; deploy plan/apply), autoscaling policies, CloudWatch alarms wired to SNS, alarms validated.
-
-## 2) Architecture (high level)
-
-* **Network:** VPC `vpc-06ea32c95833148f2` (us-east-2), 2× public subnets (ALB), 2× private subnets (ECS tasks) + NAT for egress.
-* **Compute:** ECS Fargate service `micro-dev-service` on cluster `micro-dev-ecs`.
-* **Ingress:** ALB `sg-0453aac7914b0d2e3` listener → Target Group `micro-dev-tg-80` on port 80 → container `micro-dev-app` (port 80); health check path `/`.
-* **Images:** Amazon ECR repository `microservice` (images pinned by **digest**).
-* **CI/CD:**
-
-  * **App repo:** Build → scan → push to ECR → output digest → PR to deploy repo.
-  * **Deploy repo:** PR = `terraform plan` (OIDC); merge to `main` = `terraform apply`.
-* **Observability:** CloudWatch Logs (per task); CloudWatch Alarms → SNS notifications.
-* **Autoscaling:** Application Auto Scaling target tracking (min=1, max=3) on service CPU/Memory.
-
-### 📐 System Architecture Diagram (Mermaid)
-
-```mermaid
-graph TD
-  subgraph VPC [VPC vpc-06ea32c95833148f2]
-    subgraph PublicSubnets [Public Subnets]
-      ALB[Application Load Balancer\nsg-0453aac7914b0d2e3]
-    end
-
-    subgraph PrivateSubnets [Private Subnets]
-      ECS[ECS Service micro-dev-service\nCluster: micro-dev-ecs]
-    end
-
-    NAT[NAT Gateway nat-06063c10377fba6a0]
-  end
-
-  ALB -->|Forwards HTTP/80| ECS
-  ECS -->|Pulls images| ECR[ECR Repo: microservice]
-  ECS -->|Sends logs| CW[CloudWatch Logs]
-  CW --> ALARMS[CloudWatch Alarms]
-  ALARMS --> SNS[SNS Topic: micro-dev-alerts-use1]
-
-  GitHub[GitHub Actions\nApp + Deploy Repos] -->|OIDC Assume Role| IAM[GitHub IAM Roles]
-  IAM --> ECR
-  IAM --> ECS
-```
-
-### 🔄 CI/CD Flow Diagram (Mermaid)
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant AppRepo as GitHub App Repo
-    participant DeployRepo as GitHub Deploy Repo
-    participant ECR as Amazon ECR
-    participant ECS as ECS Fargate Service
-    participant ALB as Application Load Balancer
-
-    Dev->>AppRepo: Commit code
-    AppRepo->>AppRepo: CI Workflow (test, scan, build)
-    AppRepo->>ECR: Push image (SHA digest)
-    AppRepo->>DeployRepo: Open PR with new digest
-
-    DeployRepo->>DeployRepo: PR triggers Terraform Plan (OIDC)
-    Dev->>DeployRepo: Approve + Merge PR
-    DeployRepo->>DeployRepo: Merge triggers Terraform Apply
-    DeployRepo->>ECS: Update Service with new TaskDef (digest pinned)
-
-    ECS->>ALB: Serve new version
-    ALB->>Dev: 200 OK Response
-
-    ECS->>CloudWatch: Send Logs/Metrics
-    CloudWatch->>SNS: Trigger Alerts on thresholds
-    SNS->>Dev: Email/SMS Notification
-```
-
-## 3) Repositories & Layout
-
-**App repo** (`ecs-microservice-app`)
-
-```
-app/
-Dockerfile
-.dockerignore
-.github/workflows/ci.yml
-```
-
-**Deploy repo** (`ecs-microservice-deploy`)
-
-```
-infra/terraform/
-  providers.tf  backend.tf  main.tf  variables.tf  outputs.tf
-  networking/   iam/        ecr/     ecs/          observability/
-  ecs/autoscaling.tf
-  observability/alarms.tf
-environments/dev/dev.tfvars
-.github/workflows/plan_apply.yml
-```
-
-## 4) Prerequisites
-
-* AWS account (region **us-east-2**), GitHub repos (App + Deploy)
-* **OIDC roles:** `GitHubECRPushRole`, `GitHubTerraformDeployRole`
-* **Terraform backend:** S3 (versioned, encrypted) + DynamoDB table `tf-locks`
-* Local tools (optional): Terraform ≥ 1.6, AWS CLI v2, Docker
-
-## 5) Configuration
-
-Update `environments/dev/dev.tfvars` with your live values:
-
-```hcl
-region         = "us-east-2"
-project_prefix = "micro"
-env            = "dev"
-# Networking
-vpc_id                        = "vpc-06ea32c95833148f2"
-alb_public_subnet_ids         = ["subnet-03c932e9f9306ea34", "subnet-048636854206d63b92"]
-ecs_private_subnet_ids        = ["subnet-0cb937fb5a2ff2457", "subnet-06c96b155527807d1"]
-alb_security_group_id         = "sg-0453aac7914b0d2e3"
-# ECS/ALB identifiers
-cluster_name                  = "micro-dev-ecs"
-service_name                  = "micro-dev-service"
-tg_arn_suffix                 = "targetgroup/micro-dev-tg-80/<hash>"
-alb_arn_suffix                = "app/micro-dev-alb/<hash>"
-# Observability
-sns_topic_arn                 = "arn:aws:sns:us-east-2:803767876973:micro-dev-alerts-use1"
-```
-
-## 6) Deploy Steps (Dev)
-
-**One-time:**
-
-1. Create TF backend (S3 + DynamoDB) and set `backend.tf` accordingly.
-2. Create OIDC roles and attach least-privilege policies; add role ARNs to GitHub Secrets.
-3. Create ECR repo `microservice` (scan-on-push + KMS).
-
-**Day-to-day (GitOps):**
-
-1. **App change → build:**
-
-   * Commit to App repo → GitHub Actions builds, scans, pushes to ECR.
-   * The workflow outputs the **image digest** and PR to Deploy repo.
-2. **Deploy approval:**
-
-   * Merge the Deploy repo PR → `plan_apply` workflow runs with `GitHubTerraformDeployRole` and applies.
-   * ECS service updates to the new image **digest**.
-3. **Verify:**
-
-   * Check ALB DNS → should return `200 OK`.
-   * Confirm task logs in CloudWatch and alarms remain `OK`.
-
-## 7) Rollback Procedure (Quick)
-
-If a bad deploy occurs:
-
-1. In Deploy repo, revert the image digest to the **previous known good** value (use Git history).
-2. Commit & PR → `plan` → merge to `main` → `apply` updates the ECS service back to prior digest.
-3. Watch ECS events until task is stable and Target Group is `healthy`.
-
-> **Alternative:** Temporarily scale desired count to 0 then back to 1 to force a clean replacement, if needed.
-
-## 8) Autoscaling (Summary)
-
-* Target tracking for `micro-dev-service` (min=1, max=3) using CPU and/or Memory.
-* Policies provisioned in `ecs/autoscaling.tf`. Deploy role includes `application-autoscaling:*` and ECS `UpdateService`.
-
-## 9) Monitoring & Alerts
-
-CloudWatch alarms (see `observability/alarms.tf`):
-
-* **ALB 5xx high**
-* **Target Group unhealthy hosts**
-* **ECS CPU high**
-* **ECS Memory high**
-* **ECS Running tasks low**
-
-All alarms publish to `arn:aws:sns:us-east-2:803767876973:micro-dev-alerts-use1`. Validated with test notifications.
-
-## 10) Troubleshooting (Quick Reference)
-
-* **ALB 503 / Unhealthy TG:** Verify container port = target group port; health path `/`; ECS SG allows from ALB SG; task running. Check container logs.
-* **Tasks can’t pull image (ResourceInitializationError):** Private subnets must have 0.0.0.0/0 → NAT Gateway `nat-06063c10377fba6a0`; Task Execution Role needs ECR + logs permissions.
-* **OIDC AccessDenied:** `sub` in trust policy must exactly match `repo:OWNER/REPO:ref:refs/heads/BRANCH`.
-* **Terraform backend errors:** Bucket name/region mismatch or missing DynamoDB table `tf-locks`.
-* **PassRole errors:** Ensure Deploy role has `iam:PassRole` only for the **task execution role ARN**.
-
-## 11) Cost Guardrails
-
-* Monthly AWS Budget ($50) publishes to the SNS topic.
-* Tag resources: `owner=Parris`, `project=ecs-micro`, `env=dev`.
-
-## 12) Security Notes
-
-* Never store static AWS keys in repos; use GitHub OIDC roles.
-* Pin images by **digest**; avoid mutable `:latest`.
-* Least privilege IAM: tighten to ARNs as resources stabilize.
+The solution includes:
+- Modular Terraform IaC for VPC, ECS Fargate, ALB, IAM, and observability
+- GitHub Actions CI/CD pipelines with OIDC-based authentication
+- End-to-end observability via CloudWatch + Amazon Managed Grafana
+- Cost guardrails and IAM least-privilege governance
 
 ---
 
-# Operations Runbook (Deploy Repo)
+## 🏗️ Architecture Overview
 
-## A) Contacts & Ownership
+### AWS Components
+| Layer | Services & Configuration |
+|-------|---------------------------|
+| **Networking** | VPC (`vpc-06ea32c95833148f2`) with 2 public + 2 private subnets, NAT Gateway (`nat-06063c10377fba6a0`), and segmented security groups (ALB 80/443 inbound; ECS tasks only from ALB SG). |
+| **Compute & Containers** | ECS Cluster `micro-dev-ecs` running Fargate Service `micro-dev-service`. Tasks pull images from ECR and log to CloudWatch. |
+| **Load Balancing** | Application Load Balancer (ALB) front-end with target group `micro-dev-tg-80`; health checks on `/`; returns HTTP 200 OK. |
+| **Storage & State** | Terraform backend via encrypted S3 bucket + DynamoDB table for state locking. |
+| **Monitoring & Logs** | CloudWatch log groups (`/ecs/micro-dev`, `/ecs/micro-dev-app`), Container Insights metrics, Managed Grafana dashboards. |
+| **Governance & Security** | IAM group `DevOpsEngineers` (MFA enforced), least-privilege automation roles for ECR push and Terraform deploy, AWS Budgets $50 limit with SNS alerts. |
 
-* **Primary owner:** Parris Brantley
-* **On-call notifications:** SNS → Email/SMS list
-
-## B) Production Inventory
-
-* **Region:** us-east-2
-* **Cluster/Service:** `micro-dev-ecs` / `micro-dev-service`
-* **ECR repo:** `microservice`
-* **ALB DNS:** <copy from console>
-* **SNS Topic ARN:** `arn:aws:sns:us-east-2:803767876973:micro-dev-alerts-use1`
-* **VPC ID:** `vpc-06ea32c95833148f2`
-* **Subnets:** public [ `subnet-03c932e9f9306ea34`, `subnet-048636854206d63b92` ], private [ `subnet-0cb937fb5a2ff2457`, `subnet-06c96b155527807d1` ]
-* **NAT Gateway:** `nat-06063c10377fba6a0`
-* **ALB SG:** `sg-0453aac7914b0d2e3`
-
-## C) Alarms — What They Mean & What To Do
-
-1. **ALB 5xx High** → Upstream container errors → Check ECS logs, app health endpoint.
-2. **Target Group Unhealthy Hosts** → Health checks failing → Confirm path `/`, SG rules, task running.
-3. **ECS CPU/Memory High** → Service saturated → Confirm autoscaling; consider raising max capacity.
-4. **ECS Running Tasks Low** → Tasks crashed → Inspect last stopped reason, image pull, env vars; redeploy.
-
-## D) SOPs
-
-* **Deploy:** Merge approved PR → Terraform apply → ECS update.
-* **Rollback:** Revert image digest → PR → apply.
-* **Scale override (temporary):** Adjust `desired_count` (Terraform) or ECS console, then restore IaC.
-* **Rotate secrets:** Update in AWS SSM/Secrets Manager → restart tasks.
-
-## E) Common Break/Fix
-
-* **NAT/ECR Pull:** Ensure route table default → NAT GW; NACL allows egress.
-* **OIDC Role Fail:** Validate trust `aud` + `sub`; branch match; re-run.
-* **ALB Path Mismatch:** Health check must be `/`; update module and apply.
-
-## F) Verification Checklists
-
-* **Post-Deploy:** ALB returns 200, TG healthy, new task def active, logs clean.
-* **Post-Rollback:** Same checks; alarms back to OK.
-
-## G) Appendices
-
-* IDs and ARNs listed above; GitHub repos; CloudWatch dashboards.
+🗺️ *Architecture Diagram*  
+*(Insert `architecture_diagram.png` illustrating VPC + ALB + ECS + GitHub CI/CD + CloudWatch/Grafana flow.)*
 
 ---
 
-> **Next (Mini-Step 9.3):** End-to-End validation — make an app change, push, and confirm CI/CD updates ECS + ALB with new version.
+## ⚙️ CI/CD Pipeline — GitOps Workflow
+
+### Repositories
+| Repo | Purpose |
+|------|----------|
+| **ecs-microservice-app** | Contains microservice source, Dockerfile, and CI workflow to build, scan, and push images to ECR. |
+| **ecs-microservice-deploy** | Contains Terraform infrastructure modules and workflow to apply infra changes via PR approval and merge. |
+
+### Workflow Summary
+1. **App Repo (CI pipeline)**  
+   - Runs tests and Trivy scan.  
+   - Builds Docker image and pushes to ECR (with SHA digest).  
+   - Automatically creates a PR in the deploy repo to update `app.auto.tfvars` with the new digest.
+2. **Deploy Repo (CD pipeline)**  
+   - On PR → `terraform plan` (run by `GitHubTerraformDeployRole`).  
+   - On merge → `terraform apply` to deploy updated image digest to ECS Fargate.  
+   - ALB verifies health checks and serves the new version.  
+
+🧩 *CI/CD Flow Diagram*  
+*(Insert `cicd_workflow.png` showing App → Deploy → ECS → ALB cycle.)*
+
+---
+
+## 🔒 Security & IAM Design
+
+| Type | Role / Group | Description |
+|------|---------------|-------------|
+| **Human Access** | `DevOpsEngineers` IAM Group + policy `DevOpsReadOnlyPlus` | Read-only and safe operations policy (MFA enforced). |
+| **Automation** | `GitHubECRPushRole` | Allows CI workflow to push images to ECR. |
+| | `GitHubTerraformDeployRole` | Allows CD workflow to run Terraform plan/apply with least privilege. |
+| **Task Roles** | ECS task execution role (`micro-dev-ecs-task-exec`) + task role | Limited to ECR read + CloudWatch logs. |
+| **Terraform Backend** | Encrypted S3 bucket + DynamoDB lock table `tf-locks` | Prevents state corruption and enforces team coordination. |
+
+All automation uses **OIDC-based assume-role** authentication—no long-lived AWS keys in GitHub.
+
+---
+
+## 📊 Observability & Monitoring
+
+- **CloudWatch Logs** — `/ecs/micro-dev` and `/ecs/micro-dev-app` store container stdout/stderr.  
+- **Container Insights** — CPU, memory, network, and task metrics enabled for ECS cluster and ALB.  
+- **Managed Grafana Workspace** — `micro-dev-grafana` integrated via AWS SSO (GrafanaAdmins group).  
+- **Unified Dashboard** — visualizes ECS CPU/Memory/Tasks, ALB latency, 5xx errors, and request count.  
+- **Cost Controls** — AWS Budget ($50/month) with 80% and 100% SNS threshold alerts (`micro-dev-alerts-use1`).  
+
+---
+
+## ✅ Results & Deliverables
+
+| Category | Status | Notes |
+|-----------|---------|-------|
+| **Networking + ECS** | ✅ Complete | Private subnets with NAT egress verified. ALB returns 200 OK. |
+| **CI/CD Automation** | ✅ Complete | PR → Plan, Merge → Apply flow validated. |
+| **IAM Security** | ✅ Complete | OIDC roles, MFA enforced, least privilege confirmed. |
+| **Logging & Observability** | ✅ Complete | Logs and metrics streaming to CloudWatch + Grafana. |
+| **Cost Guardrails** | ✅ Complete | Budget and SNS alerts tested successfully. |
+
+---
+
+## 🧩 Repository Structure
+
+ecs-microservice-app/
+├── app/
+├── Dockerfile
+├── .dockerignore
+└── .github/workflows/ci.yml
+
+ecs-microservice-deploy/
+├── infra/terraform/
+│ ├── networking/
+│ ├── iam/
+│ ├── ecr/
+│ ├── ecs/
+│ ├── observability/
+│ ├── providers.tf
+│ ├── backend.tf
+│ ├── variables.tf
+│ ├── outputs.tf
+│ └── main.tf
+├── environments/dev/
+│ ├── dev.tfvars
+│ └── app.auto.tfvars
+└── .github/workflows/plan_apply.yml
+
+
+---
+
+## 🧠 Lessons Learned
+- **IAM role granularity** matters: tight policies reduce risk while enabling automation.  
+- **NAT Gateway connectivity** is essential for Fargate tasks to pull images from ECR.  
+- **CloudWatch log groups** must exist before ECS launches tasks or logs will fail to initialize.  
+- **Grafana + AWS SSO** simplifies secure observability without hard-coded credentials.  
+- **GitOps model** ensures every change is traceable and reversible via Git history.
+
+---
+
+## 📸 Screenshots
+*(Replace placeholders with actual images)*
+- `screenshots/alb_200_ok.png` — ALB endpoint response 200 OK  
+- `screenshots/ecs_service_running.png` — ECS service “Running”  
+- `screenshots/cloudwatch_logs.png` — Active log stream  
+- `screenshots/grafana_dashboard.png` — ECS + ALB metrics dashboard  
+- `screenshots/aws_budget_alert.png` — Budget SNS notification  
+
+---
+
+## 🧾 Future Enhancements (Optional)
+1. **HTTPS + Custom Domain** (ACM cert, Route 53, ALB 443 listener).  
+2. **ECS Auto Scaling** based on CPU/Memory target tracking.  
+3. **Rollback Automation** (Lambda trigger on failed deploy).  
+4. **Alerting & Runbook** finalization (ECS task crash / ALB 5xx).  
+5. **Security Hardening** — log retention + tight task role permissions.  
+
+---
+
+## 📜 License
+MIT License – for demonstration and educational use only.

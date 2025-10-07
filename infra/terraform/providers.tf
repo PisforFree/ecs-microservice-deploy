@@ -12,7 +12,7 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias  = "use1"
+  alias  = "sso"
   region = "us-east-1"
 }
 # Day-5 policy test: no-op change

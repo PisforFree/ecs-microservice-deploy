@@ -74,4 +74,9 @@ module "observability" {
   ecs_service_name = var.ecs_service_name
 
   sns_topic_arn = var.sns_topic_arn
+
+ providers = {
+    aws     = aws      # default provider (us-east-2)
+    aws.sso = aws.sso  # aliased provider (us-east-1) for Identity Center data sources
+  }
 }

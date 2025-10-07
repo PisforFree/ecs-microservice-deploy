@@ -228,6 +228,29 @@
       ]
     },
     {
+      "Sid": "AllowManageTaskExecLogsPolicyDoc",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicyVersions",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion"
+      ],
+      "Resource": "arn:aws:iam::803767876973:policy/micro-dev-ecs-task-exec-logs"
+    },
+    {
+      "Sid": "AllowAttachDetachLogsPolicyToExecRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::803767876973:role/micro-dev-ecs-task-exec"
+    },
+    {
       "Sid": "CloudWatchLogsLogGroupManagement",
       "Effect": "Allow",
       "Action": [
