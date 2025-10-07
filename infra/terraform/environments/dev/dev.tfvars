@@ -24,8 +24,6 @@ image_digest = "sha256:c56728b0cf8efc961fd6d3abf1db620822bbb7c4faa962f2be54d867e
 existing_private_route_table_id = "rtb-0cfd187c223fc7632"
 existing_nat_gateway_id         = "nat-06063c10377fba6a0"
 
-# --- Target Group (port 80) in your VPC ---
-target_group_arn = "arn:aws:elasticloadbalancing:us-east-2:803767876973:targetgroup/micro-dev-tg-80/9f9bbaf61d8f7551"
 
 ecs_cluster_name        = "micro-dev-cluster"
 ecs_service_name        = "micro-dev-svc"
