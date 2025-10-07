@@ -3,7 +3,7 @@ locals {
 }
 
 resource "aws_ecs_cluster" "this" {
-  name = local.cluster_name
+  name = "micro-dev-ecs"
 
   setting {
     name  = "containerInsights"
@@ -16,3 +16,4 @@ resource "aws_ecs_cluster" "this" {
     env     = var.env
   }
 }
+
